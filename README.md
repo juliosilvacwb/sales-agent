@@ -232,19 +232,19 @@ O projeto possui uma suíte completa de testes automatizados unitários e de int
 ### Executar Todos os Testes
 
 ```bash
-pytest
+python -m pytest
 ```
 
 ### Executar Apenas os Testes Unitários
 
 ```bash
-pytest tests/unit
+python -m pytest tests/unit
 ```
 
 ### Executar Apenas os Testes de Integração End-to-End
 
 ```bash
-pytest tests/integration
+python -m pytest tests/integration
 ```
 
 ---
