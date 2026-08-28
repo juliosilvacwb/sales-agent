@@ -209,18 +209,84 @@ A documentação da API (Swagger UI) está disponível em: `http://localhost:800
 
 ---
 
-### Execução via Docker
+### 🐳 Execução via Docker & Docker Hub
 
-Construa a imagem Docker:
+A imagem pré-construída da aplicação está disponível publicamente no Docker Hub em:
+👉 **[juliosilvacwb/sales-agent no Docker Hub](https://hub.docker.com/r/juliosilvacwb/sales-agent)**
+
+#### 1. Executar Imagem Pública (Recomendado)
+
+##### 🌐 Modo Web API (Padrão - FastAPI na porta 8000)
 
 ```bash
-docker build -t sales-agent .
+# Executa a aplicação Web em background mapeando a porta 8000
+docker run -d \
+  --name sales-agent-web \
+  -p 8000:8000 \
+  --env-file .env \
+  juliosilvacwb/sales-agent:latest
 ```
 
-Execute o contêiner interativamente passando as variáveis de ambiente:
+> Acesse a interface web em `http://localhost:8000/` e a documentação Swagger em `http://localhost:8000/docs`.
+
+##### 💻 Modo CLI (Terminal Interativo)
 
 ```bash
-docker run -it --rm --env-file .env sales-agent
+# Executa a interface de linha de comando no terminal
+docker run -it --rm \
+  --env-file .env \
+  --entrypoint python \
+  juliosilvacwb/sales-agent:latest -m src.adapter.inbound.cli.main
+```
+
+---
+
+#### 2. Passando Variáveis de Ambiente Diretas no Comando (sem arquivo .env)
+
+##### 🌐 Modo Web API via Variáveis Diretas (FastAPI + Porta 8000)
+
+```bash
+docker run -d \
+  --name sales-agent-web \
+  -p 8000:8000 \
+  -e LLM_PROVIDER=openai \
+  -e MODEL_NAME=gpt-4o-mini \
+  -e TEMPERATURE=0.0 \
+  -e OPENAI_API_KEY="sk-proj-sua-chave-api-aqui" \
+  -e DATASET_PATH=/app/dataset/sales.csv \
+  -e LOG_LEVEL=INFO \
+  juliosilvacwb/sales-agent:latest
+```
+
+##### 💻 Modo CLI via Variáveis Diretas (Terminal Interativo)
+
+```bash
+docker run -it --rm \
+  -e LLM_PROVIDER=openai \
+  -e MODEL_NAME=gpt-4o-mini \
+  -e TEMPERATURE=0.0 \
+  -e OPENAI_API_KEY="sk-proj-sua-chave-api-aqui" \
+  -e DATASET_PATH=/app/dataset/sales.csv \
+  -e LOG_LEVEL=INFO \
+  --entrypoint python \
+  juliosilvacwb/sales-agent:latest -m src.adapter.inbound.cli.main
+```
+
+---
+
+#### 3. Build, Tag e Push Local (Para Desenvolvedores)
+
+Caso queira construir e publicar sua própria versão:
+
+```bash
+# 1. Construir a imagem Docker localmente
+docker build -t sales-agent:latest .
+
+# 2. Marcar a imagem com seu usuário no Docker Hub
+docker tag sales-agent:latest juliosilvacwb/sales-agent:latest
+
+# 3. Publicar a imagem no Docker Hub
+docker push juliosilvacwb/sales-agent:latest
 ```
 
 ---

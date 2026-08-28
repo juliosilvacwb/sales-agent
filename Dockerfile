@@ -33,5 +33,8 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Default entrypoint runs the CLI interactive loop
-ENTRYPOINT ["python", "-m", "src.adapter.inbound.cli.main"]
+# Expose Web API port
+EXPOSE 8000
+
+# Default entrypoint starts the Web FastAPI application
+ENTRYPOINT ["python", "-m", "uvicorn", "src.adapter.inbound.web.main:app", "--host", "0.0.0.0", "--port", "8000"]
