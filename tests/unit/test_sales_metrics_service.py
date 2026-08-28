@@ -103,8 +103,9 @@ def test_calculate_revenue_deficit(application_service, mock_sales_port):
 def test_calculate_average_discount(application_service, mock_sales_port):
     result = application_service.calculate_average_discount()
     mock_sales_port.get_all_sales.assert_called_once()
-    # Discount rates: (50-45)/50 = 10%, (100-100)/100 = 0%. Avg = 5%.
-    assert result.overall_average_discount_percentage == 5.0
+    # Discount rates: (50-45)/50 = 10% (positive discount). Record 2 has 0% discount.
+    # Per business logic (Incident B002), average discount percentage considers positive discounts.
+    assert result.overall_average_discount_percentage == 10.0
 
 
 def test_identify_sales_seasonality(application_service, mock_sales_port):
