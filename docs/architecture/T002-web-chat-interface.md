@@ -3,6 +3,8 @@
 ## PRD Reference
 
 - **PRD:** [R002-web-chat-interface.md](../business-requirements/R002-web-chat-interface.md)
+- **Test Coverage:** [TEST002-web-chat-interface.md](../tests/TEST002-web-chat-interface.md)
+- **Security Audit:** [S002-web-chat-interface.md](../security/S002-web-chat-interface.md)
 
 ## Technical Goal
 
@@ -25,22 +27,22 @@ Criar uma interface web leve e interativa para o Sales Data Analysis Agent, demo
 
 ### 🔵 Phase 1 — Domain Core (Zero framework dependencies)
 
-- [x] Task 001 - [Domain-Model]: Criar Value Object `SessionContext` para encapsular metadados da sessão (ex: `session_id`, `timestamp`). (Depends On: —)
+- [COMPLETED] Task 001 - [Domain-Model]: Criar Value Object `SessionContext` para encapsular metadados da sessão (ex: `session_id`, `timestamp`). (Depends On: —)
 
 ### 🟡 Phase 2 — Ports & Use Cases (All tasks parallel-safe | Depends on Phase 1)
 
-- [x] Task 002 - [DTO]: Definir `ChatRequestDTO` (mensagem, session_id) e `ChatResponseDTO` (texto de resposta, status). (Depends On: Task 001)
-- [x] Task 003 - [Port-In]: Definir `WebChatUseCase` interface com método `process_chat_message(request: ChatRequestDTO) -> ChatResponseDTO`. (Depends On: Task 002)
-- [x] Task 004 - [UseCase]: Implementar `WebChatApplicationService` que orquestra a chamada ao agente LangChain, injetando o histórico de conversa com base no `session_id`. (Depends On: Task 003)
+- [COMPLETED] Task 002 - [DTO]: Definir `ChatRequestDTO` (mensagem, session_id) e `ChatResponseDTO` (texto de resposta, status). (Depends On: Task 001)
+- [COMPLETED] Task 003 - [Port-In]: Definir `WebChatUseCase` interface com método `process_chat_message(request: ChatRequestDTO) -> ChatResponseDTO`. (Depends On: Task 002)
+- [COMPLETED] Task 004 - [UseCase]: Implementar `WebChatApplicationService` que orquestra a chamada ao agente LangChain, injetando o histórico de conversa com base no `session_id`. (Depends On: Task 003)
 
 ### 🟢 Phase 3 — Adapters (All tasks parallel-safe | Depends on Phase 2)
 
-- [x] Task 005 - [Config]: Configurar aplicação FastAPI base (roteador, middlewares CORS, montagem do diretório de arquivos estáticos). (Depends On: Task 004)
-- [x] Task 006 - [Adapter-Web]: Implementar `ChatRestController` que expõe `POST /chat` e invoca o `WebChatUseCase`. (Depends On: Task 004)
-- [x] Task 007 - [Adapter-Persistence]: Implementar mecanismo de persistência de memória (ex: `InMemorySessionHistoryAdapter` compatível com o BaseChatMessageHistory do LangChain) para o `session_id`. (Depends On: Task 004)
-- [x] Task 008 - [Adapter-Web-Frontend]: Desenvolver `index.html` e `styles.css` (Dark Mode, layout responsivo de chat, balões de mensagem, micro-animações). (Depends On: —)
-- [x] Task 009 - [Adapter-Web-Frontend]: Desenvolver `app.js` (geração de `session_id` no client-side, requisição `fetch` assíncrona, renderização de Markdown, controle do loading state). (Depends On: Task 006, Task 008)
-- [x] Task 010 - [Test-Integration]: Implementar teste End-to-End validando o fluxo de chat via FastAPI (múltiplos turnos para garantir retenção de memória da sessão). (Depends On: Task 005, Task 006, Task 007)
+- [COMPLETED] Task 005 - [Config]: Configurar aplicação FastAPI base (roteador, middlewares CORS, montagem do diretório de arquivos estáticos). (Depends On: Task 004)
+- [COMPLETED] Task 006 - [Adapter-Web]: Implementar `ChatRestController` que expõe `POST /chat` e invoca o `WebChatUseCase`. (Depends On: Task 004)
+- [COMPLETED] Task 007 - [Adapter-Persistence]: Implementar mecanismo de persistência de memória (ex: `InMemorySessionHistoryAdapter` compatível com o BaseChatMessageHistory do LangChain) para o `session_id`. (Depends On: Task 004)
+- [COMPLETED] Task 008 - [Adapter-Web-Frontend]: Desenvolver `index.html` e `styles.css` (Dark Mode, layout responsivo de chat, balões de mensagem, micro-animações). (Depends On: —)
+- [COMPLETED] Task 009 - [Adapter-Web-Frontend]: Desenvolver `app.js` (geração de `session_id` no client-side, requisição `fetch` assíncrona, renderização de Markdown, controle do loading state). (Depends On: Task 006, Task 008)
+- [COMPLETED] Task 010 - [Test-Integration]: Implementar teste End-to-End validando o fluxo de chat via FastAPI (múltiplos turnos para garantir retenção de memória da sessão). (Depends On: Task 005, Task 006, Task 007)
 
 ## Task Detailing (Summary Tasks)
 

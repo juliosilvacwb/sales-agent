@@ -13,11 +13,12 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 1. **Abordagem Híbrida Inteligente:**
    - **10 Domain Tools Determinísticas:** Métricas críticas de negócio (ex: produto mais vendido, SLA logístico, impacto de promoções, déficit de receita, elasticidade) são calculadas em código puro Python, imunes a alucinações matemáticas de LLMs.
    - **Secured SQL Fallback Tool:** Perguntas analíticas *ad-hoc* não previstas no catálogo de domínio são roteadas para uma ferramenta de consulta SQL com proteção rigorosa.
-2. **DuckDB In-Process (OLAP):** Mecanismo colunar vetorizado para processamento analítico submilisegundo em memória, sem custos ou complexidade de servidores de banco externos.
-3. **Arquitetura Hexagonal (Ports & Adapters):** O núcleo de domínio (regras matemáticas e modelos de dados) possui zero acoplamento com LangChain, DuckDB ou bibliotecas de terceiros.
-4. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
-5. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
-6. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), garantindo imutabilidade dos dados analíticos.
+2. **Interface Web Premium (FastAPI + Vanilla JS):** Acesso democratizado aos dados de vendas através de um frontend moderno (Dark Mode, layout responsivo) comunicando-se com a API REST de forma assíncrona, eliminando a dependência da CLI.
+3. **DuckDB In-Process (OLAP):** Mecanismo colunar vetorizado para processamento analítico submilisegundo em memória, sem custos ou complexidade de servidores de banco externos.
+4. **Arquitetura Hexagonal (Ports & Adapters):** O núcleo de domínio (regras matemáticas e modelos de dados) possui zero acoplamento com LangChain, DuckDB ou bibliotecas web.
+5. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
+6. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
+7. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), e sanitização contra injeção de HTML/JS no frontend (`DOMPurify`), garantindo imutabilidade e integridade.
 
 ---
 
@@ -28,6 +29,8 @@ O projeto adota o padrão **Hexagonal (Ports & Adapters)** para garantir testabi
 ```mermaid
 graph TB
     subgraph Inbound Adapters [Adapters - Entrada]
+        WebClient[Web Frontend / Browser]
+        FastAPI[FastAPI / REST Controller]
         CLI[CLI Main / Terminal Loop]
         Agent[SalesAgent Orchestrator]
         DomainTools[10x LangChain Domain Tools]
@@ -36,14 +39,16 @@ graph TB
 
     subgraph Inbound Ports [Ports - Entrada]
         UseCasePort[SalesAnalysisUseCase Port]
+        WebChatPort[WebChatUseCase Port]
     end
 
     subgraph Application Core [Aplicação]
         AppService[SalesMetricsApplicationService]
+        WebChatAppService[WebChatApplicationService]
     end
 
     subgraph Domain Core [Domínio Puro]
-        Models[Domain Models: SaleRecord, MetricResult]
+        Models[Domain Models: SaleRecord, MetricResult, SessionContext]
         BasicMetrics[BasicMetricsService]
         AdvancedMetrics[AdvancedMetricsService]
     end
@@ -55,8 +60,14 @@ graph TB
     subgraph Outbound Adapters [Adapters - Saída]
         DuckDBAdapter[DuckDbSalesAdapter - In-Memory OLAP]
         LLMFactory[LLMFactory - LangChain Provider]
+        SessionMemory[InMemorySessionHistoryAdapter]
     end
 
+    WebClient -->|POST /chat| FastAPI
+    FastAPI --> WebChatPort
+    WebChatPort --> WebChatAppService
+    WebChatAppService --> Agent
+    WebChatAppService --> SessionMemory
     CLI --> Agent
     Agent --> DomainTools
     Agent --> FallbackTool
@@ -181,6 +192,20 @@ Inicie o agente interativo:
 ```bash
 python -m src.adapter.inbound.cli.main
 ```
+
+---
+
+### Execução Local (Web Interface)
+
+Inicie o servidor FastAPI:
+
+```bash
+python -m uvicorn src.adapter.inbound.web.main:app --reload
+```
+
+Acesse a interface web abrindo o navegador em: `http://localhost:8000/`
+
+A documentação da API (Swagger UI) está disponível em: `http://localhost:8000/docs`
 
 ---
 

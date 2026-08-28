@@ -1,5 +1,7 @@
 """Unit tests for SessionContext."""
+from dataclasses import FrozenInstanceError
 from datetime import datetime
+import pytest
 from src.domain.model.session_context import SessionContext
 
 
@@ -20,3 +22,12 @@ def test_session_context_custom_timestamp():
     
     assert ctx.session_id == session_id
     assert ctx.timestamp == custom_ts
+
+
+def test_session_context_immutability():
+    """Verify that SessionContext is immutable (frozen dataclass)."""
+    ctx = SessionContext(session_id="session-immutable")
+    with pytest.raises(FrozenInstanceError):
+        setattr(ctx, "session_id", "new-id")
+
+

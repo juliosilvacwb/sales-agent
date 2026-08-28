@@ -18,12 +18,14 @@ def mock_sales_agent(mocker):
             self.memory_store.append(question)
             return f"Answer based on: {', '.join(self.memory_store)}"
             
-    # We patch the agent factory in the chat_controller singleton
+    from collections import OrderedDict
     from src.adapter.inbound.web.chat_controller import get_web_chat_use_case_singleton
+    from src.application.service.web_chat_application_service import WebChatApplicationService
     use_case = get_web_chat_use_case_singleton()
+    assert isinstance(use_case, WebChatApplicationService)
     use_case._agent_factory = lambda: FakeAgent()
     # Clear active sessions to ensure a fresh FakeAgent is used
-    use_case._active_sessions = {}
+    use_case._active_sessions = OrderedDict()
     return use_case
 
 def test_web_chat_flow(mock_sales_agent):
@@ -61,3 +63,32 @@ def test_web_chat_flow(mock_sales_agent):
     data3 = response3.json()
     assert "What is the top product?" not in data3["response"]
     assert "Hello" in data3["response"]
+
+
+def test_web_chat_integration_error_response():
+    """Verify HTTP 200 with error payload when agent encounters runtime failure."""
+    class FailingAgent:
+        def initialize(self):
+            pass
+
+        def ask(self, question: str) -> str:
+            raise RuntimeError("Agent operational failure")
+
+    from collections import OrderedDict
+    from src.adapter.inbound.web.chat_controller import get_web_chat_use_case_singleton
+    from src.application.service.web_chat_application_service import WebChatApplicationService
+    use_case = get_web_chat_use_case_singleton()
+    assert isinstance(use_case, WebChatApplicationService)
+    use_case._agent_factory = lambda: FailingAgent()
+    use_case._active_sessions = OrderedDict()
+
+    client = TestClient(app)
+    response = client.post(
+        "/chat",
+        json={"message": "fail", "session_id": "err-session"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["response"] == "An unexpected error occurred while processing your request. Please try again later."
+

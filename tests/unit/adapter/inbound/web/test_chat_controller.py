@@ -28,3 +28,33 @@ def test_process_chat(mocker):
     
     # Cleanup
     app.dependency_overrides.clear()
+
+
+def test_process_chat_endpoint_validation_error():
+    """Verify endpoint returns HTTP 422 for invalid/missing request payload."""
+    app.dependency_overrides.clear()
+    response = client.post(
+        "/chat",
+        json={"invalid_field": 123}
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+
+
+def test_get_web_chat_use_case_singleton_lifecycle(mocker):
+    """Verify get_web_chat_use_case_singleton creates and caches singleton instance."""
+    import src.adapter.inbound.web.chat_controller as chat_controller
+    from src.application.service.web_chat_application_service import WebChatApplicationService
+
+    # Reset singleton state
+    chat_controller._app_service_instance = None
+
+    # First call initializes singleton
+    inst1 = chat_controller.get_web_chat_use_case_singleton()
+    assert isinstance(inst1, WebChatApplicationService)
+
+    # Second call returns the exact same instance
+    inst2 = chat_controller.get_web_chat_use_case_singleton()
+    assert inst1 is inst2
+

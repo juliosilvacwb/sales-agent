@@ -13,10 +13,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Configure marked options
-    marked.setOptions({
-        breaks: true,
-        gfm: true
-    });
+    if (typeof marked !== "undefined" && marked.setOptions) {
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+    }
 
     function addMessage(content, type) {
         const messageDiv = document.createElement("div");
@@ -26,8 +28,10 @@ document.addEventListener("DOMContentLoaded", () => {
         contentDiv.classList.add("message-content");
         
         if (type === "bot-message") {
-            // Parse Markdown for bot messages
-            contentDiv.innerHTML = marked.parse(content);
+            // Parse Markdown and sanitize with DOMPurify to prevent DOM-based XSS
+            const rawHtml = typeof marked !== "undefined" ? marked.parse(content) : content;
+            const cleanHtml = typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(rawHtml) : rawHtml;
+            contentDiv.innerHTML = cleanHtml;
         } else {
             // Escape user input to prevent XSS
             contentDiv.textContent = content;
