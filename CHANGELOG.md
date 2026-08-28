@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Integração End-to-End:** Novos testes de integração simulando múltiplos turnos e checando resiliência.
 - **Documentação de API Atualizada:** Inclusão do documento `docs/api/web-chat.md`.
 
+### Fixed
+
+- **Web Chat Network Error (B001):** Corrigido o erro 500 ao iniciar sessões no chat web. A falha ocorria por falta de injeção de dependências do `SalesAgent` e ausência das chaves de API. A correção incluiu a restauração da inicialização via `bootstrap_agent()` no `chat_controller`, a inclusão do carregamento correto das variáveis de ambiente (`load_dotenv()`) no serviço web, e a implementação de uma barreira segura (`try...except`) que evita crashs da aplicação, retornando erros encapsulados e seguros para o frontend.
+
 ## [1.0.0] - 2026-08-27
 
 ### Added

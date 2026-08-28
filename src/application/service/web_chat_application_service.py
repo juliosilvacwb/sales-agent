@@ -25,20 +25,20 @@ class WebChatApplicationService(WebChatUseCase):
 
     def process_chat_message(self, request: ChatRequestDTO) -> ChatResponseDTO:
         """Processes the chat message by routing it to the session's agent."""
-        if request.session_id in self._active_sessions:
-            # Mark session as recently used
-            self._active_sessions.move_to_end(request.session_id)
-        else:
-            # Evict oldest session if limit reached
-            if len(self._active_sessions) >= self._max_active_sessions:
-                evicted_session, _ = self._active_sessions.popitem(last=False)
-                logger.info("Evicted oldest session from active pool: %s", evicted_session)
-                
-            self._active_sessions[request.session_id] = self._agent_factory()
-            
-        agent = self._active_sessions[request.session_id]
-        
         try:
+            if request.session_id in self._active_sessions:
+                # Mark session as recently used
+                self._active_sessions.move_to_end(request.session_id)
+            else:
+                # Evict oldest session if limit reached
+                if len(self._active_sessions) >= self._max_active_sessions:
+                    evicted_session, _ = self._active_sessions.popitem(last=False)
+                    logger.info("Evicted oldest session from active pool: %s", evicted_session)
+                    
+                self._active_sessions[request.session_id] = self._agent_factory()
+                
+            agent = self._active_sessions[request.session_id]
+            
             logger.info("Processing chat message for session_id: %s", request.session_id)
             # Reusing the 'ask' method from SalesAgent
             answer = agent.ask(request.message)

@@ -3,6 +3,7 @@ from src.application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
 from src.application.port.inbound.web_chat_use_case import WebChatUseCase
 from src.application.service.web_chat_application_service import WebChatApplicationService
 from src.adapter.inbound.llm.sales_agent import SalesAgent
+from src.adapter.inbound.cli.main import bootstrap_agent
 
 router = APIRouter()
 
@@ -19,10 +20,7 @@ def get_web_chat_use_case_singleton() -> WebChatUseCase:
     global _app_service_instance
     if _app_service_instance is None:
         def agent_factory():
-            # Adjust according to how SalesAgent is initialized in this project
-            agent = SalesAgent()
-            agent.initialize()
-            return agent
+            return bootstrap_agent()
         _app_service_instance = WebChatApplicationService(agent_factory=agent_factory)
     return _app_service_instance
 

@@ -122,3 +122,19 @@ def test_process_chat_message_multiple_independent_sessions():
     assert response_a.response == "Response A"
     assert response_b.response == "Response B"
 
+
+def test_web_chat_application_service_gracefully_handles_agent_factory_errors():
+    """TEST001-03: Verify exception during agent factory initialization is caught and returns structured error."""
+    # Arrange
+    mock_factory = MagicMock(side_effect=Exception("Mock factory failure"))
+    
+    service = WebChatApplicationService(agent_factory=mock_factory)
+    request = ChatRequestDTO(message="hello", session_id="err-session")
+    
+    # Act
+    response = service.process_chat_message(request)
+    
+    # Assert
+    assert response.status == "error"
+    assert response.response == "An unexpected error occurred while processing your request. Please try again later."
+    mock_factory.assert_called_once()

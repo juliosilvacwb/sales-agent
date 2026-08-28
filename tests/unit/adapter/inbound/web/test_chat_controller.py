@@ -58,3 +58,29 @@ def test_get_web_chat_use_case_singleton_lifecycle(mocker):
     inst2 = chat_controller.get_web_chat_use_case_singleton()
     assert inst1 is inst2
 
+
+def test_agent_factory_initializes_sales_agent(mocker):
+    """TEST001-02: Verify agent_factory instantiates a valid SalesAgent with properly injected DI."""
+    import src.adapter.inbound.web.chat_controller as chat_controller
+    from src.adapter.inbound.llm.sales_agent import SalesAgent
+    
+    # We must mock LLMFactory.create_llm because it requires API keys
+    mock_llm = mocker.patch("src.adapter.outbound.llm.llm_factory.LLMFactory.create_llm")
+    mock_llm.return_value = mocker.MagicMock()
+    
+    # Reset singleton state
+    chat_controller._app_service_instance = None
+    
+    service_instance = chat_controller.get_web_chat_use_case_singleton()
+    
+    # Assert type to satisfy static type checkers and narrow the type
+    from src.application.service.web_chat_application_service import WebChatApplicationService
+    assert isinstance(service_instance, WebChatApplicationService)
+    
+    # Act: Invoke the factory
+    agent = service_instance._agent_factory()
+    
+    # Assert
+    assert isinstance(agent, SalesAgent)
+    assert agent._llm == mock_llm.return_value
+    assert len(agent._tools) > 0
