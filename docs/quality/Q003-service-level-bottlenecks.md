@@ -9,7 +9,7 @@ No divergences identified:
 
 - **Business Requirements (R):** The resolution fulfills business intent. When all warehouses present equal SLA averages (98.00%), the system accurately reports `worst_location="N/A"` and explicitly states in the summary that no logistics SLA bottleneck exists, eliminating false positive hallucinations.
 - **Technical Roadmap (T / B):** The solution strictly adheres to hexagonal domain architecture. Zero external framework dependencies were added to `src/domain/service/advanced_metrics_service.py`.
-- **Project Skills:** Enforces Clean Code, SOLID principles, floating-point imprecision tolerance (`1e-4`), and complete unit/integration test coverage.
+- **Project Skills:** Enforces Clean Code, SOLID principles, exact rounded equality check (`min_sla == max_sla`), and complete unit/integration test coverage.
 
 ## 2. Implementation Gap Analysis
 

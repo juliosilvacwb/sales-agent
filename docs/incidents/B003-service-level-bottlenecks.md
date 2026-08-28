@@ -7,18 +7,33 @@ The AI assistant hallucinates a false positive SLA bottleneck for `Whse_A` when 
 
 ## Technical Analysis of Root Cause
 
-The issue is located in `AdvancedMetricsService.analyze_service_level_bottlenecks` in `src/domain/service/advanced_metrics_service.py`.
+The issue was located in `AdvancedMetricsService.analyze_service_level_bottlenecks` in `src/domain/service/advanced_metrics_service.py`.
 
 1. **Arbitrary Selection on Equal Values:**
-   The function calculates rounded location SLA averages `loc_averages` (where all warehouses evaluate to `0.98`) and determines the worst location using `worst_loc, worst_sla = min(loc_averages.items(), key=lambda item: item[1])`. When all values in `loc_averages` are equal (`0.98`), Python's `min()` arbitrarily picks the first item in dictionary iteration (`Whse_A`).
+   The function calculates rounded location SLA averages `loc_averages` (where all warehouses evaluate to `0.98`) and previously determined the worst location using `worst_loc, worst_sla = min(loc_averages.items(), key=lambda item: item[1])`. When all values in `loc_averages` were equal (`0.98`), Python's `min()` arbitrarily picked the first item in dictionary iteration (`Whse_A`).
 
-2. **False Positive Bottleneck Summary:**
-   The domain model generates a summary explicitly claiming `Whse_A` is the "critical SLA bottleneck" with 98.00% service level, despite the fleet average also being 98.00% and no warehouse performing worse than another.
+2. **Floating-Point Imprecision vs. Exact Equality (`min_sla == max_sla`):**
+   Using a floating-point delta check such as `abs(max_sla - min_sla) < 1e-4` proved prone to edge-case errors due to IEEE-754 float representation (e.g. `0.9800 - 0.9799` evaluating to `0.00009999999999998899 < 0.0001`). This caused legitimate small differences (such as `Whse_A` dropping to 97.99% while others stayed at 98.00%) to be incorrectly treated as equal ties, projecting `min_sla` (97.99%) onto all warehouses in the summary string.
 
-3. **Floating Point Accumulation Imprecision:**
-   Unrounded float accumulation over thousands of rows produces minute floating-point discrepancies (`0.9799999999996978` vs `0.9800000000003375`), which can mislead raw min/max evaluations prior to rounding.
+3. **Definitive Fix:**
+   The condition was refined to compare exact equality on rounded 4-decimal averages:
 
-As a result, the tool output fed into the LLM states `worst_location: "Whse_A"`, prompting the LLM to present `Whse_A` as having the worst service level, even though all warehouses operate at identical 98.00% SLA.
+   ```python
+   if min_sla == max_sla:
+       summary = (
+           f"All locations present an equal average service level of {min_sla * 100:.2f}% "
+           f"(overall fleet average: {overall_avg * 100:.2f}%). No logistics SLA bottleneck identified."
+       )
+       return ServiceLevelBottleneckResult(
+           worst_location="N/A",
+           worst_service_level=min_sla,
+           overall_average_service_level=overall_avg,
+           location_averages=loc_averages,
+           summary=summary,
+       )
+   ```
+
+   When averages differ (e.g., `0.9799` vs `0.9800`), `min_sla == max_sla` evaluates to `False`, allowing the system to accurately identify `worst_location="Whse_A"` with `worst_service_level=0.9799`.
 
 ## Reproduction Script (MANDATORY)
 

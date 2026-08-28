@@ -49,7 +49,7 @@ class AdvancedMetricsService:
         max_sla = max(loc_averages.values())
         overall_avg = round(total_sla / len(records), 4)
 
-        if abs(max_sla - min_sla) < 1e-4:
+        if min_sla == max_sla:
             summary = (
                 f"All locations present an equal average service level of {min_sla * 100:.2f}% "
                 f"(overall fleet average: {overall_avg * 100:.2f}%). No logistics SLA bottleneck identified."
