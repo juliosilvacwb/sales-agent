@@ -34,15 +34,15 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 
 ### 🔵 Phase 1 — Domain Core (Zero framework dependencies)
 
-- [ ] Task 002 - [Domain-Model]: Criar entidades e *Value Objects* para Vendas e Métricas (`SaleRecord`, `MetricResult`). (Depends On: Task 001)
-- [ ] Task 003 - [Domain-Service]: Implementar lógicas puras de métricas básicas (Top Produto, Top Local, Total Vendas, Planned vs Actual, Promoção). (Depends On: Task 002)
-- [ ] Task 004 - [Domain-Service]: Implementar lógicas puras de métricas complexas (SLA, Deficit, Desconto, Sazonalidade, Elasticidade). (Depends On: Task 002)
+- [x] Task 002 - [Domain-Model]: Criar entidades e *Value Objects* para Vendas e Métricas (`SaleRecord`, `MetricResult`). (Depends On: Task 001)
+- [x] Task 003 - [Domain-Service]: Implementar lógicas puras de métricas básicas (Top Produto, Top Local, Total Vendas, Planned vs Actual, Promoção). (Depends On: Task 002)
+- [x] Task 004 - [Domain-Service]: Implementar lógicas puras de métricas complexas (SLA, Deficit, Desconto, Sazonalidade, Elasticidade). (Depends On: Task 002)
 
 ### 🟡 Phase 2 — Ports & Use Cases (All tasks parallel-safe | Depends on Phase 1)
 
-- [ ] Task 005 - [Port-Out]: Definir `SalesDataPort` interface para acesso aos dados analíticos. (Depends On: Task 002)
-- [ ] Task 006 - [Port-In]: Definir `SalesAnalysisUseCase` interface para requisições de análise. (Depends On: Task 002)
-- [ ] Task 007 - [UseCase]: Implementar `SalesMetricsApplicationService` orquestrando o cálculo das métricas usando o `SalesDataPort`. (Depends On: Task 003, Task 004, Task 005, Task 006)
+- [x] Task 005 - [Port-Out]: Definir `SalesDataPort` interface para acesso aos dados analíticos. (Depends On: Task 002)
+- [x] Task 006 - [Port-In]: Definir `SalesAnalysisUseCase` interface para requisições de análise. (Depends On: Task 002)
+- [x] Task 007 - [UseCase]: Implementar `SalesMetricsApplicationService` orquestrando o cálculo das métricas usando o `SalesDataPort`. (Depends On: Task 003, Task 004, Task 005, Task 006)
 
 ### 🟢 Phase 3 — Adapters (All tasks parallel-safe | Depends on Phase 2)
 
@@ -101,7 +101,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 002
 - **Parallel With:** Task 006
 - **Objective:** Criar a interface de saída (contrato) estipulando os métodos que a infraestrutura deve prover (ex: `get_sales()`, `execute_query()`).
-- **Files/Path:** `src/application/port/out/sales_data_port.py`
+- **Files/Path:** `src/application/port/outbound/sales_data_port.py`
 - **Technical Acceptance Criteria:** Apenas classes/interfaces abstratas sem implementação de SQL.
 
 ### Task 006 - [Port-In]: Definir SalesAnalysisUseCase
@@ -110,7 +110,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 002
 - **Parallel With:** Task 005
 - **Objective:** Criar as interfaces de entrada (comandos de análise) que a camada de agentes irá consumir.
-- **Files/Path:** `src/application/port/in/sales_analysis_usecase.py`
+- **Files/Path:** `src/application/port/inbound/sales_analysis_usecase.py`
 - **Technical Acceptance Criteria:** Apenas definição de assinaturas de métodos.
 
 ### Task 007 - [UseCase]: Implementar SalesMetricsApplicationService
@@ -128,7 +128,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 005
 - **Parallel With:** Task 009, Task 010, Task 011, Task 012
 - **Objective:** Implementar `SalesDataPort` conectando-se ao DuckDB e fazendo `read_csv_auto` do `sales.csv` em memória, retornando objetos do domínio.
-- **Files/Path:** `src/adapter/out/persistence/duckdb_sales_adapter.py`
+- **Files/Path:** `src/adapter/outbound/persistence/duckdb_sales_adapter.py`
 - **Technical Acceptance Criteria:** Integração com DuckDB retorna os dados reais mapeados para os modelos de domínio.
 
 ### Task 009 - [Adapter-LLM]: Implementar LangChain Domain Tools
@@ -137,7 +137,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 007
 - **Parallel With:** Task 008, Task 010, Task 011, Task 012
 - **Objective:** Envelopar as chamadas aos métodos de Use Case com o decorador `@tool` do LangChain, definindo os docstrings estritos para roteamento.
-- **Files/Path:** `src/adapter/in/llm/domain_tools.py`
+- **Files/Path:** `src/adapter/inbound/llm/domain_tools.py`
 - **Technical Acceptance Criteria:** As 10 tools são reconhecidas pelo LangChain e executam as lógicas de domínio.
 
 ### Task 010 - [Adapter-LLM]: Implementar SecuredSQLQueryTool e Logs de Observabilidade
@@ -146,7 +146,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 008
 - **Parallel With:** Task 008, Task 009, Task 011, Task 012
 - **Objective:** Ferramenta de Fallback que intercepta SQL, varre comandos proibidos (`DROP`, `DELETE`, `UPDATE` etc.) e repassa ao `DuckDbSalesAdapter`. Deve obrigatoriamente registrar um log com a tag `[MISSING_TOOL]` e a pergunta original.
-- **Files/Path:** `src/adapter/in/llm/sql_fallback_tool.py`
+- **Files/Path:** `src/adapter/inbound/llm/sql_fallback_tool.py`
 - **Technical Acceptance Criteria:** Testes bloqueiam injeções, permitem apenas `SELECT`, e verificam a emissão do log `[MISSING_TOOL]` contendo o input do usuário.
 
 ### Task 011 - [Adapter-External]: Configurar LLM Factory
@@ -155,7 +155,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 001
 - **Parallel With:** Task 008, Task 009, Task 010, Task 012
 - **Objective:** Criar a factory que retorna uma instância de chat model (`init_chat_model`) lendo `LLM_PROVIDER` do `.env`.
-- **Files/Path:** `src/adapter/out/llm/llm_factory.py`
+- **Files/Path:** `src/adapter/outbound/llm/llm_factory.py`
 - **Technical Acceptance Criteria:** Alternância de modelos funciona sem alterar código fonte.
 
 ### Task 012 - [Adapter-Web/CLI]: Agente LangChain e CLI
@@ -164,7 +164,7 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 - **Depends On:** Task 009, Task 010, Task 011
 - **Parallel With:** Task 008, Task 009, Task 010, Task 011
 - **Objective:** Configurar o agente orquestrador unindo o modelo (Task 011), as Tools (Task 009 e 010) e injetar o Dicionário de Dados no System Prompt. Criar o loop de interação no terminal (main.py).
-- **Files/Path:** `src/adapter/in/cli/main.py`, `src/adapter/in/llm/sales_agent.py`
+- **Files/Path:** `src/adapter/inbound/cli/main.py`, `src/adapter/inbound/llm/sales_agent.py`
 - **Technical Acceptance Criteria:** Chatbot responde no terminal e roteia perguntas simples para Tools e complexas para Fallback SQL.
 
 ### Task 013 - [Test-Integration]: Testes End-to-End

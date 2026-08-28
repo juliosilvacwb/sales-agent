@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra -q"
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["."]
+pythonVersion = "3.11"
