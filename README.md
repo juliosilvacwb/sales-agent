@@ -2,6 +2,9 @@
 
 > **Agente de Inteligência Artificial para Análise Conversacional de Dados de Vendas com Arquitetura Hexagonal, DuckDB e LangChain.**
 
+[![GitHub Repo](https://img.shields.io/badge/GitHub-juliosilvacwb%2Fsales--agent-blue?logo=github)](https://github.com/juliosilvacwb/sales-agent)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-juliosilvacwb%2Fsales--agent-blue?logo=docker)](https://hub.docker.com/r/juliosilvacwb/sales-agent)
+
 ---
 
 ## 📌 Visão Geral
@@ -146,6 +149,13 @@ challenge_ai_engineer/
 
 - Python 3.10+ instalado
 - Chave de API de um provedor de IA (OpenAI, Anthropic ou Google Gemini)
+
+### Clonar o Repositório
+
+```bash
+git clone https://github.com/juliosilvacwb/sales-agent.git
+cd sales-agent
+```
 
 ### Configuração do Ambiente (.env)
 
