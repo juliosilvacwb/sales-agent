@@ -1,30 +1,30 @@
-﻿# S002-data-analysis-promotions -- Security Audit
+# S002-data-analysis-promotions — Auditoria de Segurança
 
-> **Source Task:** [B002-data-analysis-promotions.md](../incidents/B002-data-analysis-promotions.md)
+> **Tarefa de Origem:** [B002-data-analysis-promotions.md](../incidents/B002-data-analysis-promotions.md)
 
-## Security Overview
+## Visão Geral de Segurança
 
-A targeted security audit was conducted on the implementation of `AdvancedMetricsService.calculate_average_discount` and promotion analysis code. The audit evaluated input sanitization, numeric safety (NaN/Inf propagation), memory efficiency, and LLM prompt context security.
+Uma auditoria de segurança direcionada foi realizada na implementação de `AdvancedMetricsService.calculate_average_discount` e no código de análise de promoções. A auditoria avaliou a higienização de entradas, segurança numérica (propagação de NaN/Inf), eficiência de memória e segurança do contexto do prompt do LLM.
 
-## Vulnerability Log
+## Registro de Vulnerabilidades
 
-| ID | Vulnerability | Severity | Risk | Impact |
-| --- | --- | --- | --- | --- |
-| S002-01 | Unsanitized Promotion Key String | Low | Low x Low | Potential LLM prompt context pollution if untrusted dataset contains raw control characters in `promotion_type`. |
-| S002-02 | Numerical Stability (NaN / Inf Defense) | Low | Low x Low | Corrupted dataset records with non-finite floats could propagate NaN to JSON serialization. |
+| ID | Vulnerabilidade | Severidade | Risco | Impacto |
+| :--- | :--- | :--- | :--- | :--- |
+| S002-01 | String de Chave de Promoção Não Higienizada | Baixo | Baixo x Baixo | Potencial poluição no contexto do prompt do LLM caso o dataset contenha caracteres de controle brutos em `promotion_type`. |
+| S002-02 | Estabilidade Numérica (Defesa NaN / Inf) | Baixo | Baixo x Baixo | Registros de dataset corrompidos com floats não finitos poderiam propagar NaN para a serialização JSON. |
 
-## Refinement Tasks
+## Tarefas de Refinamento
 
-### Task 002 - Fix calculate_average_discount logic
+### Task 002 - Corrigir a lógica de calculate_average_discount
 
-- [COMPLETED] [S002-01] [Low] **Unsanitized Promotion Key String**
-  - **Location:** `src/domain/service/advanced_metrics_service.py` -> `calculate_average_discount()`
-  - **Risk:** Untrusted dataset values in `promotion_type` could contain control characters or formatting syntax that pollute JSON outputs fed into LLM prompts.
-  - **Fix:** Sanitize `promo_key` using `.strip()` and fallback handling for empty or None strings.
-  - **Validation:** Tested with DuckDbSalesAdapter mapped entity records ensuring clean JSON serialization.
+- [COMPLETED] [S002-01] [Baixo] **String de Chave de Promoção Não Higienizada**
+  - **Localização:** `src/domain/service/advanced_metrics_service.py` -> `calculate_average_discount()`
+  - **Risco:** Valores de dataset não confiáveis em `promotion_type` poderiam conter caracteres de controle ou sintaxe de formatação que poluem as saídas JSON enviadas para os prompts do LLM.
+  - **Correção:** Higienizar `promo_key` usando `.strip()` e tratamento de fallback para strings vazias ou None.
+  - **Validação:** Testado com registros de entidades mapeados pelo DuckDbSalesAdapter garantindo serialização JSON limpa.
 
-- [COMPLETED] [S002-02] [Low] **Numerical Stability (NaN / Inf Defense)**
-  - **Location:** `src/domain/service/advanced_metrics_service.py` -> `calculate_average_discount()`
-  - **Risk:** Corrupted dataset records with non-finite floats could propagate NaN to JSON serialization.
-  - **Fix:** Guarded discount rate calculations with `planned_price > 0` and zero-division checks.
-  - **Validation:** Verified calculation bounds across empty lists, single records, and 200k+ record datasets.
+- [COMPLETED] [S002-02] [Baixo] **Estabilidade Numérica (Defesa NaN / Inf)**
+  - **Localização:** `src/domain/service/advanced_metrics_service.py` -> `calculate_average_discount()`
+  - **Risco:** Registros de dataset corrompidos com floats não finitos poderiam propagar NaN para a serialização JSON.
+  - **Correção:** Proteção dos cálculos da taxa de desconto com `planned_price > 0` e verificações de divisão por zero.
+  - **Validação:** Verificados os limites de cálculo em listas vazias, registros únicos e datasets com mais de 200k registros.

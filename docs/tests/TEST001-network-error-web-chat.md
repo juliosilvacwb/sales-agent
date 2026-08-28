@@ -1,39 +1,39 @@
-# TEST001-network-error-web-chat — Test Coverage Specification
+# TEST001-network-error-web-chat — Especificação de Cobertura de Testes
 
-> **Source Task:** [B001-network-error-web-chat.md](../incidents/B001-network-error-web-chat.md)
+> **Tarefa de Origem:** [B001-network-error-web-chat.md](../incidents/B001-network-error-web-chat.md)
 
-## Coverage Overview
+## Visão Geral de Cobertura
 
-This test specification addresses the coverage gaps identified during the resolution of the B001 network error incident. It ensures that the dependencies are properly injected into the `SalesAgent` and that any exceptions during the agent initialization process are gracefully caught by the application service layer, preventing unhandled server crashes (HTTP 500).
+Esta especificação de testes aborda os lacunas de cobertura identificadas durante a resolução do incidente de erro de rede B001. Ela garante que as dependências sejam devidamente injetadas no `SalesAgent` e que quaisquer exceções durante o processo de inicialização do agente sejam capturadas adequadamente pela camada de serviço da aplicação, evitando erros 500 não tratados no servidor.
 
-## Test Checklist
+## Checklist de Testes
 
-### Task 001 - Implement the reproduction script in tests/integration/test_web_chat_incident_b001.py
+### Task 001 - Implementar o script de reprodução em tests/integration/test_web_chat_incident_b001.py
 
-- [COMPLETED] [TEST001-01] [Integration] **Test Web Chat Network Error Reproduction**
-  - **Target:** `tests/integration/test_web_chat_incident_b001.py` → `test_web_chat_network_error_reproduction()`
-  - **Scenario:** The chat request to a new session executes without throwing HTTP 500.
-  - **Arrange:** Initialize FastAPI `TestClient` with the application instance.
-  - **Act:** Post a chat request `{"message": "hello", "session_id": "test-session-123"}` to `/chat`.
-  - **Assert:** The response status code is `200 OK` and the returned `status` field is either `success` or `error`.
-  - **Priority:** P0 (Critical)
+- [COMPLETED] [TEST001-01] [Integration] **Teste de Reprodução do Erro de Rede no Web Chat**
+  - **Alvo:** `tests/integration/test_web_chat_incident_b001.py` → `test_web_chat_network_error_reproduction()`
+  - **Cenário:** A requisição de chat para uma nova sessão executa sem lançar HTTP 500.
+  - **Arrange:** Inicializar o `TestClient` do FastAPI com a instância da aplicação.
+  - **Act:** Enviar requisição POST `{"message": "hello", "session_id": "test-session-123"}` para `/chat`.
+  - **Assert:** O código de status da resposta é `200 OK` e o campo `status` retornado é `success` ou `error`.
+  - **Prioridade:** P0 (Crítica)
 
-### Task 002 - Fix agent_factory in src/adapter/inbound/web/chat_controller.py
+### Task 002 - Corrigir agent_factory em src/adapter/inbound/web/chat_controller.py
 
-- [COMPLETED] [TEST001-02] [Unit] **Test Agent Factory Initializes SalesAgent with Proper DI**
-  - **Target:** `src/adapter/inbound/web/chat_controller.py` → `get_web_chat_use_case_singleton()`
-  - **Scenario:** The `agent_factory` passed to the singleton `WebChatApplicationService` properly instantiates a valid `SalesAgent` instance.
-  - **Arrange:** Call `get_web_chat_use_case_singleton()` to retrieve the service instance.
-  - **Act:** Invoke the protected `_agent_factory()` from the retrieved service instance.
-  - **Assert:** The returned object is an instance of `SalesAgent` and has valid `_llm` and `_tools` initialized.
-  - **Priority:** P1 (High)
+- [COMPLETED] [TEST001-02] [Unit] **Teste se Agent Factory Inicializa SalesAgent com Injeção de Dependências Adequada**
+  - **Alvo:** `src/adapter/inbound/web/chat_controller.py` → `get_web_chat_use_case_singleton()`
+  - **Cenário:** O `agent_factory` passado ao singleton `WebChatApplicationService` instancia corretamente uma instância válida de `SalesAgent`.
+  - **Arrange:** Chamar `get_web_chat_use_case_singleton()` para obter a instância do serviço.
+  - **Act:** Invocar o método protegido `_agent_factory()` a partir da instância obtida.
+  - **Assert:** O objeto retornado é uma instância de `SalesAgent` e possui atributos `_llm` e `_tools` válidos inicializados.
+  - **Prioridade:** P1 (Alta)
 
-### Task 003 - Move agent instantiation into try...except block in WebChatApplicationService
+### Task 003 - Mover instanciação do agente para bloco try...except em WebChatApplicationService
 
-- [COMPLETED] [TEST001-03] [Unit] **Test WebChatApplicationService Gracefully Handles Agent Factory Errors**
-  - **Target:** `src/application/service/web_chat_application_service.py` → `process_chat_message()`
-  - **Scenario:** When the `agent_factory` raises an exception during agent initialization, the service catches it and returns a structured error response instead of throwing.
-  - **Arrange:** Create a mock `agent_factory` that always raises an `Exception("Mock factory failure")`. Instantiate `WebChatApplicationService(agent_factory=mock_factory)`. Create a `ChatRequestDTO` payload.
-  - **Act:** Call `process_chat_message(request)`.
-  - **Assert:** The method returns a `ChatResponseDTO` with `status="error"` and `response="An unexpected error occurred while processing your request. Please try again later."`.
-  - **Priority:** P0 (Critical)
+- [COMPLETED] [TEST001-03] [Unit] **Teste se WebChatApplicationService Trata Erros da Fábrica de Agentes Adequadamente**
+  - **Alvo:** `src/application/service/web_chat_application_service.py` → `process_chat_message()`
+  - **Cenário:** Quando o `agent_factory` lança uma exceção durante a inicialização do agente, o serviço a captura e retorna uma resposta de erro estruturada em vez de lançar exceção.
+  - **Arrange:** Criar um `agent_factory` mock que sempre lança uma `Exception("Mock factory failure")`. Instanciar `WebChatApplicationService(agent_factory=mock_factory)`. Criar payload `ChatRequestDTO`.
+  - **Act:** Chamar `process_chat_message(request)`.
+  - **Assert:** O método retorna um `ChatResponseDTO` com `status="error"` e `response="An unexpected error occurred while processing your request. Please try again later."`.
+  - **Prioridade:** P0 (Crítica)

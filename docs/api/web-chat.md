@@ -1,32 +1,32 @@
-# API Reference: Web Chat Interface
+# Referência da API: Interface de Web Chat
 
-This document specifies the REST API contracts for the Sales Data Analysis Agent Web Chat interface.
+Este documento especifica os contratos da API REST para a interface de Web Chat do Agente de Análise de Dados de Vendas.
 
-## Base URL
+## URL Base
 
 `/chat`
 
 ## `GET /`
 
-Redirects the user to the Web Chat interface page.
+Redireciona o usuário para a página da interface de Web Chat.
 
-- **Status Code:** `307 Temporary Redirect`
+- **Código de Status:** `307 Temporary Redirect`
 - **Location:** `/static/index.html`
 
 ## `POST /chat`
 
-Processes a user's natural language chat message, maintains session context, and returns the agent's generated response.
+Processa a mensagem em linguagem natural enviada pelo usuário, mantém o contexto da sessão e retorna a resposta gerada pelo agente.
 
-### Request Body (JSON)
+### Corpo da Requisição (JSON)
 
-**Data Transfer Object:** `ChatRequestDTO`
+**Objeto de Transferência de Dados:** `ChatRequestDTO`
 
-| Field | Type | Required | Constraints | Description |
+| Campo | Tipo | Obrigatório | Restrições | Descrição |
 | --- | --- | --- | --- | --- |
-| `message` | string | **Yes** | `min_length: 1`, `max_length: 4000` | The user's chat message or question. |
-| `session_id` | string | **Yes** | `min_length: 1`, `max_length: 128`, regex: `^[a-zA-Z0-9_\-]+$` | The unique session identifier used to maintain conversational history. |
+| `message` | string | **Sim** | `min_length: 1`, `max_length: 4000` | A mensagem ou pergunta do usuário. |
+| `session_id` | string | **Sim** | `min_length: 1`, `max_length: 128`, regex: `^[a-zA-Z0-9_\-]+$` | O identificador único de sessão usado para manter o histórico conversacional. |
 
-**Example Request:**
+**Exemplo de Requisição:**
 
 ```json
 {
@@ -35,16 +35,16 @@ Processes a user's natural language chat message, maintains session context, and
 }
 ```
 
-### Response Body (JSON)
+### Corpo da Resposta (JSON)
 
-**Data Transfer Object:** `ChatResponseDTO`
+**Objeto de Transferência de Dados:** `ChatResponseDTO`
 
-| Field | Type | Description |
+| Campo | Tipo | Descrição |
 | --- | --- | --- |
-| `response` | string | The agent's text response, which may include Markdown formatting. |
-| `status` | string | Status of the response (`"success"` or `"error"`). |
+| `response` | string | A resposta em texto do agente, podendo incluir formatação Markdown. |
+| `status` | string | Status da resposta (`"success"` ou `"error"`). |
 
-**Example Response (Success - 200 OK):**
+**Exemplo de Resposta (Sucesso - 200 OK):**
 
 ```json
 {
@@ -53,9 +53,9 @@ Processes a user's natural language chat message, maintains session context, and
 }
 ```
 
-**Example Response (Internal Error - 200 OK):**
+**Exemplo de Resposta (Erro Interno - 200 OK):**
 
-*Note: Internal errors return a safe sanitized message instead of a raw stack trace to prevent information disclosure.*
+*Nota: Erros internos retornam uma mensagem higienizada e segura em vez de uma stack trace bruta para prevenir o vazamento de informações.*
 
 ```json
 {
@@ -64,7 +64,7 @@ Processes a user's natural language chat message, maintains session context, and
 }
 ```
 
-**Example Response (Validation Error - 422 Unprocessable Entity):**
+**Exemplo de Resposta (Erro de Validação - 422 Unprocessable Entity):**
 
 ```json
 {
@@ -78,7 +78,7 @@ Processes a user's natural language chat message, maintains session context, and
 }
 ```
 
-### Headers & Security
+### Cabeçalhos & Segurança
 
-- **CORS:** Controlled via the `ALLOWED_ORIGINS` environment variable.
-- **Security Headers:** Responses include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+- **CORS:** Controlado via variável de ambiente `ALLOWED_ORIGINS`.
+- **Cabeçalhos de Segurança:** As respostas incluem `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: strict-origin-when-cross-origin`.

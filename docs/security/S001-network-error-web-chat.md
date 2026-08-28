@@ -1,30 +1,30 @@
-# S001-network-error-web-chat — Security Audit
+# S001-network-error-web-chat — Auditoria de Segurança
 
-> **Source Task:** [B001-network-error-web-chat.md](../incidents/B001-network-error-web-chat.md)
+> **Tarefa de Origem:** [B001-network-error-web-chat.md](../incidents/B001-network-error-web-chat.md)
 
-## Security Overview
+## Visão Geral de Segurança
 
-The implementation of the B001 specification was reviewed. The changes primarily addressed an unhandled server crash (HTTP 500) related to missing dependency injection during `SalesAgent` instantiation.
+A implementação da especificação B001 foi revisada. As alterações trataram primordialmente uma falha não tratada no servidor (HTTP 500) relacionada à injeção de dependências ausente durante a instanciação do `SalesAgent`.
 
-**Positive Security Findings:**
+**Achados Positivos de Segurança:**
 
-1. **CWE-209 Mitigation (Error Sanitization):** Task 003 successfully implemented a secure error boundary by wrapping the agent factory instantiation in a `try...except` block. This prevents potential stack traces and sensitive internal configuration details from leaking to the frontend during application failures, replacing them with a generic, sanitized message.
-2. **Secrets Management:** The fix to include `load_dotenv()` in `main.py` enables secure loading of the `OPENAI_API_KEY` via environment variables, ensuring no secrets are hardcoded in the application initialization sequence.
+1. **Mitigação da CWE-209 (Sanitização de Erros):** A Task 003 implementou com sucesso um limite de erro seguro envolvendo a instanciação da fábrica de agentes em um bloco `try...except`. Isso evita que potenciais stack traces e detalhes sensíveis de configuração interna vazem para o frontend durante falhas na aplicação, substituindo-os por uma mensagem genérica e higienizada.
+2. **Gestão de Segredos:** A inclusão de `load_dotenv()` em `main.py` permite o carregamento seguro de `OPENAI_API_KEY` via variáveis de ambiente, garantindo que nenhum segredo esteja hardcoded na sequência de inicialização da aplicação.
 
-No new vulnerabilities were introduced by this implementation.
+Nenhuma nova vulnerabilidade foi introduzida por esta implementação.
 
-## Vulnerability Log
+## Registro de Vulnerabilidades
 
-| ID | Vulnerability | Severity | Risk | Impact |
+| ID | Vulnerabilidade | Severidade | Risco | Impacto |
 | :--- | :--- | :--- | :--- | :--- |
-| N/A | No new vulnerabilities introduced | Info | Low | Secure error boundary verified. |
+| N/A | Nenhuma nova vulnerabilidade introduzida | Info | Baixo | Limite de erro seguro verificado. |
 
-## Refinement Tasks
+## Tarefas de Refinamento
 
-### Task 003 - Move agent instantiation into try...except block in WebChatApplicationService
+### Task 003 - Mover instanciação do agente para bloco try...except em WebChatApplicationService
 
-- [COMPLETED] [S001-01] [Info] **Verify Secure Error Boundary**
-  - **Location:** `src/application/service/web_chat_application_service.py` → `process_chat_message()`
-  - **Risk:** Unhandled exceptions can bubble up to FastAPI, potentially leaking stack traces or internal state (CWE-209).
-  - **Fix:** (Already implemented) Ensure the generic fallback `ChatResponseDTO` does not include `str(e)`.
-  - **Validation:** Visual inspection confirmed the exception is logged internally via `logger.exception`, but the client only receives a sanitized message ("An unexpected error occurred while processing your request. Please try again later.").
+- [COMPLETED] [S001-01] [Info] **Verificar Limite de Erro Seguro**
+  - **Localização:** `src/application/service/web_chat_application_service.py` → `process_chat_message()`
+  - **Risco:** Exceções não tratadas podem se propagar até o FastAPI, potencialmente vazando stack traces ou estado interno (CWE-209).
+  - **Correção:** (Já implementada) Garantir que o `ChatResponseDTO` de fallback genérico não inclua `str(e)`.
+  - **Validação:** A inspeção visual confirmou que a exceção é registrada internamente via `logger.exception`, mas o cliente recebe apenas uma mensagem higienizada ("An unexpected error occurred while processing your request. Please try again later.").

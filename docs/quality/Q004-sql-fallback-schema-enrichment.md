@@ -1,33 +1,41 @@
-# Q004-sql-fallback-schema-enrichment — Quality Validation Report
+# Q004-sql-fallback-schema-enrichment — Relatório de Validação de Qualidade
 
-> **Source Task:** [B004-sql-fallback-schema-enrichment.md](../incidents/B004-sql-fallback-schema-enrichment.md)
-> **Verdict:** APPROVED
+> **Tarefa de Origem:** [B004-sql-fallback-schema-enrichment.md](../incidents/B004-sql-fallback-schema-enrichment.md)  
+> **Veredito:** APROVADO  
 
-## 1. Divergence Report
+---
 
-No architectural, business, or code style divergences identified.
+## 1. Relatório de Divergências
 
-- **Business Requirements (R):** Fully compliant. Schema details (`promotion_type IS NULL`, revenue targets) and self-correction guidance on empty results are correctly exposed to the LLM agent.
-- **Technical Roadmap (T):** Fully compliant. Implemented within the Hexagonal Adapter layer (`src/adapter/inbound/llm/sql_fallback_tool.py`).
-- **Project Skills:** Fully compliant with Clean Code, SOLID, and `software-craftsmanship`.
+Nenhuma divergência arquitetural, de negócio ou de estilo de código identificada.
 
-## 2. Implementation Gap Analysis
+- **Requisitos de Negócio (R):** Totalmente em conformidade. Detalhes de esquema (`promotion_type IS NULL`, metas de receita) e orientações de auto-correção para resultados vazios são expostos corretamente ao agente LLM.
+- **Roadmap Técnico (T):** Totalmente em conformidade. Implementado dentro da camada Hexagonal de Adaptadores (`src/adapter/inbound/llm/sql_fallback_tool.py`).
+- **Project Skills:** Totalmente em conformidade com Clean Code, SOLID e `software-craftsmanship`.
 
-All tasks and sub-tasks are 100% complete across B004, TEST004, and S004 specifications:
+---
 
-- [x] Task 001 - Automated reproduction script in `tests/unit/test_sql_fallback_incident_b004.py`.
-- [x] Task 002 - Enriched `SQLQueryInput` and `SecuredSQLQueryTool` schema descriptions with explicit DuckDB table context and revenue target formulas.
-- [x] Task 003 - Structured warning payload for empty result sets, stacked query protection, and exception path sanitization.
+## 2. Análise de Lacunas de Implementação
 
-## 3. Validation Rationale (If Approved)
+Todas as tarefas e sub-tarefas estão 100% concluídas nas especificações B004, TEST004 e S004:
 
-The implementation meets all quality gates with maximum engineering rigor:
+- [x] Task 001 - Script de reprodução automatizado em `tests/unit/test_sql_fallback_incident_b004.py`.
+- [x] Task 002 - Descrições de esquema do `SQLQueryInput` e da `SecuredSQLQueryTool` enriquecidas com contexto explícito da tabela DuckDB e fórmulas de meta de receita.
+- [x] Task 003 - Payload de aviso estruturado para conjuntos de resultados vazios, proteção contra consultas empilhadas e sanitização do caminho de exceção.
 
-- **Functional Verification:** Solves root cause B004 where the fallback tool failed on non-promoted ad-hoc revenue queries due to lack of schema context.
-- **Test Suite Completeness:** Complete logic coverage across all 5 test checklist items in `TEST004` plus 2 dedicated security test cases in `S004`.
-- **Security & Resilience:** DML/DDL keyword protection enforced; added internal semicolon stacked query blocking and error path sanitization.
-- **Observability:** `[MISSING_TOOL]` logging and structured info logging preserved.
+---
 
-## 4. Actionable Feedback (If Rejected)
+## 3. Justificativa da Validação
 
-N/A - Implementation Approved.
+A implementação atende a todas as portas de qualidade com máximo rigor de engenharia:
+
+- **Verificação Funcional:** Resolve a causa raiz do B004 onde a ferramenta de fallback falhava em consultas ad-hoc de receita sem promoção devido à falta de contexto de esquema.
+- **Integridade da Suíte de Testes:** Cobertura lógica completa em todos os 5 itens do checklist de testes no `TEST004` plus 2 casos de teste de segurança dedicados no `S004`.
+- **Segurança e Resiliência:** Proteção por palavras-chave DML/DDL aplicada; adicionado bloqueio de consultas empilhadas por ponto e vírgula interno e sanitização de caminho de erro.
+- **Observabilidade:** Logs de `[MISSING_TOOL]` e logs estruturados de informação preservados.
+
+---
+
+## 4. Feedback Acionável
+
+*N/A — Implementação Aprovada.*

@@ -1,20 +1,20 @@
-# Incident Summary
+# Resumo do Incidente: B002 - Análise de Dados de Promoções
 
-- **Test Coverage:** [TEST002-data-analysis-promotions.md](../tests/TEST002-data-analysis-promotions.md)
-- **Security Audit:** [S002-data-analysis-promotions.md](../security/S002-data-analysis-promotions.md)
+- **Cobertura de Testes:** [TEST002-data-analysis-promotions.md](../tests/TEST002-data-analysis-promotions.md)
+- **Auditoria de Segurança:** [S002-data-analysis-promotions.md](../security/S002-data-analysis-promotions.md)
 
-The AI reports that the overall average discount is 0% and that there were no promotional sales or discounts applied, even though the dataset clearly contains "Flash" promotions with sales.
+O assistente de IA relata que o desconto médio geral é de 0% e que não houve vendas promocionais ou descontos aplicados, embora o conjunto de dados contenha claramente promoções do tipo "Flash" com vendas realizadas.
 
-## Technical Analysis of Root Cause
+## Análise Técnica da Causa Raiz
 
-The bug lies in `AdvancedMetricsService.calculate_average_discount` located in `src/domain/service/advanced_metrics_service.py`. There are two main issues:
+O bug reside em `AdvancedMetricsService.calculate_average_discount` localizado em `src/domain/service/advanced_metrics_service.py`. Existem dois problemas principais:
 
-1. **Total Discount Calculation:** `total_discount_val` is calculated as `max(0.0, total_planned_rev - total_actual_rev)` over all records globally. Because the total actual revenue is greater than the total planned revenue across the entire dataset (due to some items being sold at a premium), this global subtraction evaluates to `< 0`, making the `max()` return `0.0`. The calculation must sum the discounts *only* for the records where `actual_price < planned_price`.
-2. **Average Discount Percentage:** `avg_discount_pct` is computed by averaging `r.discount_rate` across all records. Since `discount_rate` can be negative (when `actual_price > planned_price`), the positive and negative rates cancel each other out across 200,000+ records, resulting in ~0.001%, which rounds down to `0.0%`.
+1. **Cálculo do Desconto Total:** `total_discount_val` é calculated como `max(0.0, total_planned_rev - total_actual_rev)` sobre todos os registros globalmente. Como a receita realizada total é maior que a receita planejada total em todo o conjunto de dados (devido a alguns itens vendidos com ágio/premium), essa subtração global resulta em `< 0`, fazendo com que `max()` retorne `0.0`. O cálculo deve somar os descontos *apenas* para os registros onde `actual_price < planned_price`.
+2. **Percentual de Desconto Médio:** `avg_discount_pct` é calculado tirando a média de `r.discount_rate` em todos os registros. Como `discount_rate` pode ser negativo (quando `actual_price > planned_price`), as taxas positivas e negativas se anulam ao longo de 200.000+ registros, resultando em ~0.001%, que é arredondado para `0.0%`.
 
-As a consequence, the `average_discount_in_promotion` might show a 20% discount for "Flash", but the overall discount value reads as 0, which confuses the AI into believing no discounts were actually applied.
+Como consequência, `average_discount_in_promotion` pode exibir um desconto de 20% para "Flash", mas o valor global de desconto aparece como 0, o que confunde o LLM fazendo-o acreditar que nenhum desconto foi aplicado na prática.
 
-## Reproduction Script (MANDATORY)
+## Script de Reprodução (OBRIGATÓRIO)
 
 ```python
 import pytest
@@ -50,9 +50,8 @@ def test_data_analysis_promotions_reproduction():
     )
 ```
 
-## Correction Checklist (Atomic Tasks)
+## Checklist de Correção (Tarefas Atômicas)
 
-- [COMPLETED] Task 001 - [Test] Implement the reproduction script in `tests/integration/test_data_analysis_incident_b002.py` and confirm the failure (Red).
-- [COMPLETED] Task 002 - [Logic] Fix `calculate_average_discount` in `src/domain/service/advanced_metrics_service.py` to only accumulate positive discount rates and properly sum individual positive discount values.
-- [COMPLETED] Task 003 - [Security/Perf] Add unit tests in `tests/unit/test_advanced_metrics_service.py` for edge cases where there are mixed price increases and decreases.
-
+- [COMPLETED] Task 001 - [Test] Implementar o script de reprodução em `tests/integration/test_data_analysis_incident_b002.py` e confirmar a falha (Red).
+- [COMPLETED] Task 002 - [Logic] Corrigir `calculate_average_discount` em `src/domain/service/advanced_metrics_service.py` para acumular apenas taxas de desconto positivas e somar adequadamente valores individuais de desconto positivo.
+- [COMPLETED] Task 003 - [Security/Perf] Adicionar testes unitários em `tests/unit/test_advanced_metrics_service.py` para casos de borda onde há aumentos e reduções de preço misturados.

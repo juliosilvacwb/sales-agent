@@ -1,32 +1,32 @@
-# S004-sql-fallback-schema-enrichment — Security Audit
+# S004-sql-fallback-schema-enrichment — Auditoria de Segurança
 
-> **Source Task:** [B004-sql-fallback-schema-enrichment.md](../incidents/B004-sql-fallback-schema-enrichment.md)
+> **Tarefa de Origem:** [B004-sql-fallback-schema-enrichment.md](../incidents/B004-sql-fallback-schema-enrichment.md)
 
-## Security Overview
+## Visão Geral de Segurança
 
-Security analysis of `SecuredSQLQueryTool` schema enrichment, DML/DDL protection mechanisms, prompt injection resilience, and structured empty result payload handling.
+Análise de segurança do enriquecimento de esquema da `SecuredSQLQueryTool`, mecanismos de proteção contra DML/DDL, resiliência a injeção de prompt e tratamento de payload estruturado de resultado vazio.
 
-## Vulnerability Log
+## Registro de Vulnerabilidades
 
-| ID | Vulnerability | Severity | Risk | Impact |
+| ID | Vulnerabilidade | Severidade | Risco | Impacto |
 | :--- | :--- | :--- | :--- | :--- |
-| S004-01 | Internal Path / System Error Leakage in Exception Handling | Low | Low x Low | Minor information disclosure of local environment path details in raw DuckDB exception strings. |
-| S004-02 | Stacked Query Semicolon Bypass Risk | Low | Low x Low | Potential execution of multiple queries if internal semicolons are unhandled. |
+| S004-01 | Vazamento de Caminho Interno / Erro de Sistema no Tratamento de Exceções | Baixo | Baixo x Baixo | Divulgação menor de informações sobre caminhos do ambiente local em strings de exceção brutas do DuckDB. |
+| S004-02 | Risco de Burlar com Consultas Empilhadas Usando Ponto e Vírgula | Baixo | Baixo x Baixo | Potencial execução de múltiplas consultas se pontos e vírgulas internos não forem tratados. |
 
-## Refinement Tasks
+## Tarefas de Refinamento
 
-### Task 002 — Enrich SQLQueryInput and SecuredSQLQueryTool schema descriptions
+### Task 002 — Enriquecer descrições de esquema do SQLQueryInput e SecuredSQLQueryTool
 
-- [COMPLETED] [S004-01] [Low] **Internal Error Path Sanitization**
-  - **Location:** `src/adapter/inbound/llm/sql_fallback_tool.py` → `SecuredSQLQueryTool._run()`
-  - **Risk:** Raw DuckDB exception messages in catch block `return f"Erro ao executar a consulta SQL: {str(e)}"` could disclose system file paths.
-  - **Fix:** Sanitize exception message to strip file system path details before returning to LLM agent.
-  - **Validation:** Unit test verifying exception message does not disclose full local directory path string.
+- [COMPLETED] [S004-01] [Baixo] **Sanitização de Caminho de Erro Interno**
+  - **Localização:** `src/adapter/inbound/llm/sql_fallback_tool.py` → `SecuredSQLQueryTool._run()`
+  - **Risco:** Mensagens de exceção brutas do DuckDB no bloco catch `return f"Erro ao executar a consulta SQL: {str(e)}"` poderiam divulgar caminhos de arquivos do sistema.
+  - **Correção:** Higienizar a mensagem de exceção para remover detalhes de caminhos do sistema de arquivos antes de retornar ao agente LLM.
+  - **Validação:** Teste unitário verificando que a mensagem de exceção não divulga a string completa do caminho do diretório local.
 
-### Task 003 — Structured warning payload for empty result sets
+### Task 003 — Payload de aviso estruturado para conjuntos de resultados vazios
 
-- [COMPLETED] [S004-02] [Low] **Stacked Query Semicolon Check**
-  - **Location:** `src/adapter/inbound/llm/sql_fallback_tool.py` → `SecuredSQLQueryTool._run()`
-  - **Risk:** Middle semicolons `;` in custom queries could allow stacked query attempts.
-  - **Fix:** Reject queries containing internal semicolons (`;`) after stripping trailing whitespace and trailing semicolons.
-  - **Validation:** Unit test attempting `SELECT 1; SELECT 2` verifying request rejection.
+- [COMPLETED] [S004-02] [Baixo] **Verificação de Ponto e Vírgula em Consultas Empilhadas**
+  - **Localização:** `src/adapter/inbound/llm/sql_fallback_tool.py` → `SecuredSQLQueryTool._run()`
+  - **Risco:** Pontos e vírgulas (`;`) intermediários em consultas personalizadas poderiam permitir tentativas de execução de consultas empilhadas.
+  - **Correção:** Rejeitar consultas contendo pontos e vírgulas internos (`;`) após remover espaços em branco e ponto e vírgula finais.
+  - **Validação:** Teste unitário tentando `SELECT 1; SELECT 2` verificando a rejeição da requisição.

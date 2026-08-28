@@ -1,16 +1,16 @@
-# Incident Summary
+# Resumo do Incidente: B001 - Network Error Web Chat
 
-- **Test Coverage:** [TEST001-network-error-web-chat.md](../tests/TEST001-network-error-web-chat.md)
-- **Security Audit:** [S001-network-error-web-chat.md](../security/S001-network-error-web-chat.md)
+- **Cobertura de Testes:** [TEST001-network-error-web-chat.md](../tests/TEST001-network-error-web-chat.md)
+- **Auditoria de Segurança:** [S001-network-error-web-chat.md](../security/S001-network-error-web-chat.md)
 
-The web chat interface displays a "Network error. Please try again." message when users attempt to send a chat request.
+A interface de chat web exibe a mensagem "Network error. Please try again." quando os usuários tentam enviar uma requisição de chat.
 
-**Technical Analysis of the Root Cause:**
-The frontend `fetch` request receives an HTTP 500 Internal Server Error, which it captures generically as a network error. On the backend, this 500 error is caused by a `TypeError: SalesAgent.__init__() missing 2 required positional arguments: 'llm' and 'tools'`.
+**Análise Técnica da Causa Raiz:**
+A requisição `fetch` do frontend recebe um erro HTTP 500 Internal Server Error, o qual é capturado de forma genérica como erro de rede. No backend, esse erro 500 é causado por um `TypeError: SalesAgent.__init__() missing 2 required positional arguments: 'llm' and 'tools'`.
 
-In `src/adapter/inbound/web/chat_controller.py`, the `agent_factory` instantiates `SalesAgent()` without providing the required dependencies (`llm` and `tools`). When a new chat session is initialized in `WebChatApplicationService.process_chat_message()`, this faulty factory is called. Furthermore, the factory invocation (`self._active_sessions[request.session_id] = self._agent_factory()`) is located *outside* of the `try...except` block in the service. As a result, the exception bubbles all the way up to FastAPI, leading to an unhandled HTTP 500 error instead of a graceful JSON error payload.
+Em `src/adapter/inbound/web/chat_controller.py`, o `agent_factory` instancia `SalesAgent()` sem fornecer as dependências obrigatórias (`llm` e `tools`). Quando uma nova sessão de chat é inicializada em `WebChatApplicationService.process_chat_message()`, essa fábrica com falha é acionada. Além disso, a invocação da fábrica (`self._active_sessions[request.session_id] = self._agent_factory()`) estava localizada *fora* do bloco `try...except` no serviço. Como resultado, a exceção se propaga até o FastAPI, resultando em um erro HTTP 500 não tratado em vez de um payload de erro JSON amigável.
 
-## Reproduction Script (MANDATORY)
+## Script de Reprodução (OBRIGATÓRIO)
 
 ```python
 import pytest
@@ -40,8 +40,8 @@ def test_web_chat_network_error_reproduction():
     assert data["status"] in ("success", "error")
 ```
 
-## Correction Checklist (Atomic Tasks)
+## Checklist de Correção (Tarefas Atômicas)
 
-- [COMPLETED] Task 001 - [Test] Implement the reproduction script in `tests/integration/test_web_chat_incident_b001.py` and confirm the failure (Red).
-- [COMPLETED] Task 002 - [Logic] Fix `agent_factory` in `src/adapter/inbound/web/chat_controller.py` to properly inject the `llm` and `tools` instances when instantiating `SalesAgent`.
-- [COMPLETED] Task 003 - [Security/Perf] Move `self._active_sessions[request.session_id] = self._agent_factory()` into the `try...except` block in `src/application/service/web_chat_application_service.py` to ensure any initialization failures return a structured error response instead of crashing the server.
+- [COMPLETED] Task 001 - [Test] Implementar o script de reprodução em `tests/integration/test_web_chat_incident_b001.py` e confirmar a falha (Red).
+- [COMPLETED] Task 002 - [Logic] Corrigir `agent_factory` em `src/adapter/inbound/web/chat_controller.py` para injetar corretamente as instâncias de `llm` e `tools` ao instanciar `SalesAgent`.
+- [COMPLETED] Task 003 - [Security/Perf] Mover `self._active_sessions[request.session_id] = self._agent_factory()` para dentro do bloco `try...except` em `src/application/service/web_chat_application_service.py` para garantir que qualquer falha de inicialização retorne uma resposta de erro estruturada em vez de derrubar o servidor.

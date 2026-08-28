@@ -1,24 +1,24 @@
-# Incident Summary
+# Resumo do Incidente: B004 - Enriquecimento do Esquema do Fallback SQL
 
-- **Test Coverage:** [TEST004-sql-fallback-schema-enrichment.md](../tests/TEST004-sql-fallback-schema-enrichment.md)
-- **Security Audit:** [S004-sql-fallback-schema-enrichment.md](../security/S004-sql-fallback-schema-enrichment.md)
+- **Cobertura de Testes:** [TEST004-sql-fallback-schema-enrichment.md](../tests/TEST004-sql-fallback-schema-enrichment.md)
+- **Auditoria de Segurança:** [S004-sql-fallback-schema-enrichment.md](../security/S004-sql-fallback-schema-enrichment.md)
 
-When users ask ad-hoc analytical questions not covered by fixed Domain Tools (such as *"Which products had no promotional sales but still met their revenue goal?"*), the fallback tool `SecuredSQLQueryTool` generates incorrect SQL queries. The LLM then erroneously responds that 0 products met the criteria, when in fact **914 products** in `dataset/sales.csv` fulfill the condition.
+Quando os usuários fazem perguntas analíticas ad-hoc não cobertas por ferramentas de domínio fixas (como *"Quais produtos não tiveram vendas promocionais mas ainda assim atingiram a meta de receita?"*), a ferramenta de fallback `SecuredSQLQueryTool` gera consultas SQL incorretas. O LLM responde erroneamente que 0 produtos atenderam aos critérios, quando na verdade **914 produtos** em `dataset/sales.csv` cumprem a condição.
 
-## Technical Analysis of Root Cause
+## Análise Técnica da Causa Raiz
 
-The failure occurs due to two major limitations in `src/adapter/inbound/llm/sql_fallback_tool.py`:
+A falha ocorre devido a duas limitações principais em `src/adapter/inbound/llm/sql_fallback_tool.py`:
 
-1. **Lack of Schema & Domain Semantics in Tool Description:**
-   The `SQLQueryInput` schema and `SecuredSQLQueryTool` description only state generic text (*"Executa uma consulta SQL analítica na tabela sales_data"*). They lack critical schema details:
-   - `promotion_type` is `NULL` for 99.99% of non-promoted rows.
-   - Filtering non-promoted products at the product level requires `GROUP BY product_id HAVING COUNT(promotion_type) = 0` or `WHERE promotion_type IS NULL`, rather than filtering row-level promotional items incorrectly.
-   - Revenue meta achievement requires comparing `SUM(actual_quantity * actual_price) >= SUM(planned_quantity * planned_price)`.
+1. **Falta de Esquema e Semântica de Domínio na Descrição da Ferramenta:**
+   O esquema de `SQLQueryInput` e a descrição da `SecuredSQLQueryTool` continham apenas texto genérico (*"Executa uma consulta SQL analítica na tabela sales_data"*). Faltavam detalhes críticos do esquema:
+   - `promotion_type` é `NULL` para 99,99% das linhas sem promoção.
+   - Filtrar produtos sem promoção no nível do produto requer `GROUP BY product_id HAVING COUNT(promotion_type) = 0` ou `WHERE promotion_type IS NULL`, em vez de filtrar incorretamente itens promocionais no nível de linha.
+   - O atingimento da meta de receita requer comparar `SUM(actual_quantity * actual_price) >= SUM(planned_quantity * planned_price)`.
 
-2. **Passive Empty Result Output & Lack of Self-Correction:**
-   When an ill-formed SQL query executes and returns `[]` (0 rows), `SecuredSQLQueryTool._run()` returns a passive message (*"A consulta foi executada com sucesso, mas não retornou nenhum registro"*). Seeing 0 records, the LLM accepts the result as ground truth and hallucinates an inverted conclusion ("no products met the goal without promotions").
+2. **Saída Passiva de Resultado Vazio e Falta de Auto-Correção:**
+   Quando uma consulta SQL mal formada é executada e retorna `[]` (0 linhas), `SecuredSQLQueryTool._run()` retorna uma mensagem passiva (*"A consulta foi executada com sucesso, mas não retornou nenhum registro"*). Vendo 0 registros, o LLM aceita o resultado como verdade e alucina uma conclusão invertida ("nenhum produto atingiu a meta sem promoções").
 
-## Reproduction Script (MANDATORY)
+## Script de Reprodução (OBRIGATÓRIO)
 
 ```python
 import pytest
@@ -48,8 +48,8 @@ def test_sql_fallback_schema_enrichment_and_validation_reproduction():
     )
 ```
 
-## Correction Checklist (Atomic Tasks)
+## Checklist de Correção (Tarefas Atômicas)
 
-- [COMPLETED] Task 001 - [Test] Implement the reproduction script in `tests/unit/test_sql_fallback_incident_b004.py` and confirm the failure (Red).
-- [COMPLETED] Task 002 - [Logic] Enrich `SQLQueryInput` and `SecuredSQLQueryTool` in `src/adapter/inbound/llm/sql_fallback_tool.py` with explicit `sales_data` schema context, column definitions, `promotion_type IS NULL` semantics, and calculation guidance for revenue targets.
-- [COMPLETED] Task 003 - [Security/Perf] Add semantic intent validation and structured warning payload for empty result sets in `SecuredSQLQueryTool._run()` to prompt agent self-correction before returning empty results.
+- [COMPLETED] Task 001 - [Test] Implementar o script de reprodução em `tests/unit/test_sql_fallback_incident_b004.py` e confirmar a falha (Red).
+- [COMPLETED] Task 002 - [Logic] Enriquecer `SQLQueryInput` e `SecuredSQLQueryTool` em `src/adapter/inbound/llm/sql_fallback_tool.py` com contexto explícito de esquema da tabela `sales_data`, definições de colunas, semântica de `promotion_type IS NULL` e orientações de cálculo para metas de receita.
+- [COMPLETED] Task 003 - [Security/Perf] Adicionar validação de intenção semântica e payload de aviso estruturado para conjuntos de resultados vazios em `SecuredSQLQueryTool._run()` para orientar a auto-correção do agente antes de retornar resultados vazios.
