@@ -77,3 +77,17 @@ def test_secured_sql_tool_blocks_dml_ddl(mock_sales_usecase, forbidden_query):
 
     mock_sales_usecase.execute_custom_query.assert_not_called()
     assert "Error" in result or "Erro" in result or "SecurityViolation" in result or "Violacao de seguranca" in result or "Forbidden" in result.lower() or "blocked" in result.lower() or "rejeitada" in result.lower()
+
+
+def test_secured_sql_tool_truncates_large_results():
+    """Test that query result sets exceeding 50 records are truncated with metadata header."""
+    mock_usecase = MagicMock(spec=SalesAnalysisUseCase)
+    mock_usecase.execute_custom_query.return_value = [{"product_id": f"P_{i}"} for i in range(100)]
+    
+    tool = create_sql_fallback_tool(mock_usecase)
+    result = tool.invoke({"query": "SELECT product_id FROM sales_data"})
+
+    assert "total_records" in result
+    assert "100" in result
+    assert "50" in result
+
