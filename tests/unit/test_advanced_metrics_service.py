@@ -80,8 +80,44 @@ def test_calculate_average_discount(sample_advanced_sales_records):
     service = AdvancedMetricsService()
     result = service.calculate_average_discount(sample_advanced_sales_records)
 
-    assert result.overall_average_discount_percentage == 7.5
+    assert result.overall_average_discount_percentage == 15.0
+    assert result.total_discount_value == 6400.0
     assert "Promo_Flash" in result.discount_by_promotion
+    assert result.discount_by_promotion["Promo_Flash"] == 20.0
+
+
+def test_calculate_average_discount_mixed_price_increases():
+    service = AdvancedMetricsService()
+    records = [
+        SaleRecord(
+            product_id="P1",
+            local="Whse_A",
+            date=date(2023, 1, 1),
+            planned_quantity=100.0,
+            actual_quantity=100.0,
+            planned_price=100.0,
+            actual_price=80.0,  # 20% discount, discount_val = 2,000
+            service_level=0.9,
+            promotion_type="Flash",
+        ),
+        SaleRecord(
+            product_id="P2",
+            local="Whse_A",
+            date=date(2023, 1, 1),
+            planned_quantity=100.0,
+            actual_quantity=100.0,
+            planned_price=100.0,
+            actual_price=150.0,  # Price increase, negative discount
+            service_level=0.9,
+            promotion_type=None,
+        ),
+    ]
+    result = service.calculate_average_discount(records)
+    # Price increase shouldn't negate the 2,000 discount or lower the positive discount percentage
+    assert result.total_discount_value == 2000.0
+    assert result.overall_average_discount_percentage == 20.0
+    assert result.discount_by_promotion == {"Flash": 20.0}
+
 
 
 def test_identify_sales_seasonality(sample_advanced_sales_records):

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Web Chat Network Error (B001):** Corrigido o erro 500 ao iniciar sessões no chat web. A falha ocorria por falta de injeção de dependências do `SalesAgent` e ausência das chaves de API. A correção incluiu a restauração da inicialização via `bootstrap_agent()` no `chat_controller`, a inclusão do carregamento correto das variáveis de ambiente (`load_dotenv()`) no serviço web, e a implementação de uma barreira segura (`try...except`) que evita crashs da aplicação, retornando erros encapsulados e seguros para o frontend.
+- **Desconto Médio e Análise de Promoções (B002):** Corrigida a falha no cálculo do valor total de desconto e da margem de desconto médio em promoções no `AdvancedMetricsService`. O cálculo anterior subtraía a receita real total da receita planejada globalmente, fazendo com que itens vendidos acima do valor planejado anulassem os descontos aplicados. A nova lógica acumula separadamente apenas transações com desconto efetivo (`actual_price < planned_price`), preservando a precisão analítica do agente nas estatísticas de vendas promocionais.
 
 ## [1.0.0] - 2026-08-27
 

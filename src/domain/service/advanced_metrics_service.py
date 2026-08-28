@@ -118,9 +118,15 @@ class AdvancedMetricsService:
 
         total_planned_rev = sum(r.planned_revenue for r in records)
         total_actual_rev = sum(r.actual_revenue for r in records)
-        total_discount_val = max(0.0, total_planned_rev - total_actual_rev)
+        total_discount_val = sum(
+            max(0.0, r.planned_revenue - r.actual_revenue)
+            for r in records
+            if r.planned_price > r.actual_price
+        )
 
-        discount_rates = [r.discount_rate for r in records if r.planned_price > 0]
+        discount_rates = [
+            r.discount_rate for r in records if r.planned_price > 0 and r.discount_rate > 0
+        ]
         avg_discount_pct = (
             (sum(discount_rates) / len(discount_rates) * 100.0) if discount_rates else 0.0
         )
@@ -129,9 +135,10 @@ class AdvancedMetricsService:
         promo_totals = defaultdict(float)
         promo_counts = defaultdict(int)
         for r in records:
-            promo_key = str(r.promotion_type).strip() if r.promotion_type else "None"
-            promo_totals[promo_key] += r.discount_rate * 100.0
-            promo_counts[promo_key] += 1
+            if r.planned_price > 0 and r.discount_rate > 0:
+                promo_key = str(r.promotion_type).strip() if r.promotion_type else "None"
+                promo_totals[promo_key] += r.discount_rate * 100.0
+                promo_counts[promo_key] += 1
 
         promo_breakdown = {
             k: round(promo_totals[k] / promo_counts[k], 2) for k in promo_totals
