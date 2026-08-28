@@ -4,6 +4,7 @@
 
 - **PRD:** [R001-sales-agent.md](../business-requirements/R001-sales-agent.md)
 - **Product Strategy:** [PS001-sales-agent.md](../product-strategy/PS001-sales-agent.md)
+- **Test Coverage:** [TEST001-sales-agent.md](../tests/TEST001-sales-agent.md)
 
 ## Technical Goal
 
