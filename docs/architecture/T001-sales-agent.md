@@ -54,8 +54,8 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 
 ### 🏁 Final Phase (Validation & Packaging)
 
-- [ ] Task 013 - [Test-Integration]: Implementar testes de integração (End-to-End Happy Path) garantindo acionamento das tools corretas. (Depends On: Task 012)
-- [ ] Task 014 - [Config]: Elaborar `Dockerfile` limpo e finalizar `README.md` com arquitetura e guias de uso. (Depends On: Task 012)
+- [x] Task 013 - [Test-Integration]: Implementar testes de integração (End-to-End Happy Path) garantindo acionamento das tools corretas. (Depends On: Task 012)
+- [x] Task 014 - [Config]: Elaborar `Dockerfile` limpo e finalizar `README.md` com arquitetura e guias de uso. (Depends On: Task 012)
 
 ## Task Detailing (Summary Tasks)
 
