@@ -84,11 +84,11 @@ Os indicadores baseiam-se diretamente na topologia de ingestão de dados em mem�
 
 ## Acceptance Criteria
 
-- [ ] A arquitetura consegue ingerir, sem esforço adicional, os dados contidos no arquivo `sales.csv` localmente em memória utilizando o DuckDB (processo isolado, sem necessidade de servidores externos).
-- [ ] Há evidência técnica comprovando que todas as 10 funcionalidades descritas na PRD04 possuem uma *Domain Tool* independente, tipada e com classe correspondente que encapsula a regra de cálculo, livre de "geração dinâmica de IA".
-- [ ] Em testes, uma solicitação ad-hoc resulta no uso correto da `SecuredSQLQueryTool` sem alucinações estruturais, pois a IA respeita o Dicionário de Dados fornecido.
-- [ ] Qualquer tentativa de instrução DML/DDL submetida (ex: comando contendo `UPDATE`) através do Agente falha e não compromete a estrutura dos dados.
-- [ ] É possível trocar a engine que roda a IA (por exemplo, de Anthropic para OpenAI) alterando unicamente um arquivo `.env` de configuração, com o sistema subindo com total sucesso.
-- [ ] O repositório possui um `Dockerfile` válido e funcional que empacota toda a aplicação.
-- [ ] Existe um `README.md` exaustivo contendo guia de uso, instruções de execução via Docker e local, e a documentação técnica da arquitetura.
-- [ ] O sistema produz logs identificados com a tag `[MISSING_TOOL]` registrando a pergunta do usuário quando o Fallback (SecuredSQLQueryTool) é utilizado.
+- [COMPLETED] A arquitetura consegue ingerir, sem esforço adicional, os dados contidos no arquivo `sales.csv` localmente em memória utilizando o DuckDB (processo isolado, sem necessidade de servidores externos).
+- [COMPLETED] Há evidência técnica comprovando que todas as 10 funcionalidades descritas na PRD04 possuem uma *Domain Tool* independente, tipada e com classe correspondente que encapsula a regra de cálculo, livre de "geração dinâmica de IA".
+- [COMPLETED] Em testes, uma solicitação ad-hoc resulta no uso correto da `SecuredSQLQueryTool` sem alucinações estruturais, pois a IA respeita o Dicionário de Dados fornecido.
+- [COMPLETED] Qualquer tentativa de instrução DML/DDL submetida (ex: comando contendo `UPDATE`) através do Agente falha e não compromete a estrutura dos dados.
+- [COMPLETED] É possível trocar a engine que roda a IA (por exemplo, de Anthropic para OpenAI) alterando unicamente um arquivo `.env` de configuração, com o sistema subindo com total sucesso.
+- [COMPLETED] O repositório possui um `Dockerfile` válido e funcional que empacota toda a aplicação.
+- [COMPLETED] Existe um `README.md` exaustivo contendo guia de uso, instruções de execução via Docker e local, e a documentação técnica da arquitetura.
+- [COMPLETED] O sistema produz logs identificados com a tag `[MISSING_TOOL]` registrando a pergunta do usuário quando o Fallback (SecuredSQLQueryTool) é utilizado.

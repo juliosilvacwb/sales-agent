@@ -32,32 +32,32 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 
 ### [Scaffolding] (Day Zero Preparation)
 
-- [APPROVED] Task 001 - [Scaffolding]: Inicializar estrutura do projeto Python (`src`, `tests`, `data`), `requirements.txt` e `.env.example`. (Depends On: —)
+- [COMPLETED] Task 001 - [Scaffolding]: Inicializar estrutura do projeto Python (`src`, `tests`, `data`), `requirements.txt` e `.env.example`. (Depends On: —)
 
 ### 🔵 Phase 1 — Domain Core (Zero framework dependencies)
 
-- [APPROVED] Task 002 - [Domain-Model]: Criar entidades e *Value Objects* para Vendas e Métricas (`SaleRecord`, `MetricResult`). (Depends On: Task 001)
-- [APPROVED] Task 003 - [Domain-Service]: Implementar lógicas puras de métricas básicas (Top Produto, Top Local, Total Vendas, Planned vs Actual, Promoção). (Depends On: Task 002)
-- [APPROVED] Task 004 - [Domain-Service]: Implementar lógicas puras de métricas complexas (SLA, Deficit, Desconto, Sazonalidade, Elasticidade). (Depends On: Task 002)
+- [COMPLETED] Task 002 - [Domain-Model]: Criar entidades e *Value Objects* para Vendas e Métricas (`SaleRecord`, `MetricResult`). (Depends On: Task 001)
+- [COMPLETED] Task 003 - [Domain-Service]: Implementar lógicas puras de métricas básicas (Top Produto, Top Local, Total Vendas, Planned vs Actual, Promoção). (Depends On: Task 002)
+- [COMPLETED] Task 004 - [Domain-Service]: Implementar lógicas puras de métricas complexas (SLA, Deficit, Desconto, Sazonalidade, Elasticidade). (Depends On: Task 002)
 
 ### 🟡 Phase 2 — Ports & Use Cases (All tasks parallel-safe | Depends on Phase 1)
 
-- [APPROVED] Task 005 - [Port-Out]: Definir `SalesDataPort` interface para acesso aos dados analíticos. (Depends On: Task 002)
-- [APPROVED] Task 006 - [Port-In]: Definir `SalesAnalysisUseCase` interface para requisições de análise. (Depends On: Task 002)
-- [APPROVED] Task 007 - [UseCase]: Implementar `SalesMetricsApplicationService` orquestrando o cálculo das métricas usando o `SalesDataPort`. (Depends On: Task 003, Task 004, Task 005, Task 006)
+- [COMPLETED] Task 005 - [Port-Out]: Definir `SalesDataPort` interface para acesso aos dados analíticos. (Depends On: Task 002)
+- [COMPLETED] Task 006 - [Port-In]: Definir `SalesAnalysisUseCase` interface para requisições de análise. (Depends On: Task 002)
+- [COMPLETED] Task 007 - [UseCase]: Implementar `SalesMetricsApplicationService` orquestrando o cálculo das métricas usando o `SalesDataPort`. (Depends On: Task 003, Task 004, Task 005, Task 006)
 
 ### 🟢 Phase 3 — Adapters (All tasks parallel-safe | Depends on Phase 2)
 
-- [APPROVED] Task 008 - [Adapter-Persistence]: Implementar `DuckDbSalesAdapter` implementando `SalesDataPort` com carregamento do `sales.csv`. (Depends On: Task 005)
-- [APPROVED] Task 009 - [Adapter-LLM]: Implementar as 10 LangChain Tools (`@tool`) encapsulando os UseCases definidos em Phase 2. (Depends On: Task 007)
-- [APPROVED] Task 010 - [Adapter-LLM]: Implementar `SecuredSQLQueryTool` para Fallback com bloqueios DML/DDL estritos. (Depends On: Task 008)
-- [APPROVED] Task 011 - [Adapter-External]: Configurar fábrica LLM Agnóstica carregando de variáveis `.env`. (Depends On: Task 001)
-- [APPROVED] Task 012 - [Adapter-Web/CLI]: Implementar o Agente LangChain (Orquestrador) e o CLI (Chat loop). (Depends On: Task 009, Task 010, Task 011)
+- [COMPLETED] Task 008 - [Adapter-Persistence]: Implementar `DuckDbSalesAdapter` implementando `SalesDataPort` com carregamento do `sales.csv`. (Depends On: Task 005)
+- [COMPLETED] Task 009 - [Adapter-LLM]: Implementar as 10 LangChain Tools (`@tool`) encapsulando os UseCases definidos em Phase 2. (Depends On: Task 007)
+- [COMPLETED] Task 010 - [Adapter-LLM]: Implementar `SecuredSQLQueryTool` para Fallback com bloqueios DML/DDL estritos. (Depends On: Task 008)
+- [COMPLETED] Task 011 - [Adapter-External]: Configurar fábrica LLM Agnóstica carregando de variáveis `.env`. (Depends On: Task 001)
+- [COMPLETED] Task 012 - [Adapter-Web/CLI]: Implementar o Agente LangChain (Orquestrador) e o CLI (Chat loop). (Depends On: Task 009, Task 010, Task 011)
 
 ### 🏁 Final Phase (Validation & Packaging)
 
-- [APPROVED] Task 013 - [Test-Integration]: Implementar testes de integração (End-to-End Happy Path) garantindo acionamento das tools corretas. (Depends On: Task 012)
-- [APPROVED] Task 014 - [Config]: Elaborar `Dockerfile` limpo e finalizar `README.md` com arquitetura e guias de uso. (Depends On: Task 012)
+- [COMPLETED] Task 013 - [Test-Integration]: Implementar testes de integração (End-to-End Happy Path) garantindo acionamento das tools corretas. (Depends On: Task 012)
+- [COMPLETED] Task 014 - [Config]: Elaborar `Dockerfile` limpo e finalizar `README.md` com arquitetura e guias de uso. (Depends On: Task 012)
 
 ## Task Detailing (Summary Tasks)
 
