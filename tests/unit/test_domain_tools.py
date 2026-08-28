@@ -31,7 +31,7 @@ def mock_sales_usecase():
         primary_quantity=1000.0,
     )
     usecase.get_total_sales_in_period.return_value = TotalSalesResult(
-        total_quantity=500.0, total_revenue=25000.0, total_records=5, period_start="2023-01-01", period_end="2023-01-31", average_ticket=5000.0
+        total_quantity=500.0, total_revenue=25000.0, total_records=5, period_start="01/01/2023", period_end="31/01/2023", average_ticket=5000.0
     )
     usecase.compare_planned_vs_actual_quantity.return_value = PlannedVsActualResult(
         total_planned_quantity=1000.0,
@@ -126,6 +126,20 @@ def test_tool_get_top_locations_by_volume(mock_sales_usecase):
     assert "Whse_A" in str(result)
 
 
+def test_tool_get_top_locations_by_volume_limit_normalization(mock_sales_usecase):
+    mock_sales_usecase.reset_mock()
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+
+    # Negative limit should be clamped to 1
+    tools["get_top_locations_by_volume"].invoke({"limit": -10})
+    mock_sales_usecase.get_top_locations_by_volume.assert_called_with(limit=1)
+
+    # Excessively large limit should be clamped to 100
+    mock_sales_usecase.reset_mock()
+    tools["get_top_locations_by_volume"].invoke({"limit": 99999})
+    mock_sales_usecase.get_top_locations_by_volume.assert_called_with(limit=100)
+
+
 def test_tool_get_total_sales_in_period(mock_sales_usecase):
     tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
     result = tools["get_total_sales_in_period"].invoke(
@@ -135,6 +149,40 @@ def test_tool_get_total_sales_in_period(mock_sales_usecase):
         start_date=date(2023, 1, 1), end_date=date(2023, 1, 31)
     )
     assert "500.0" in str(result)
+
+
+def test_tool_get_total_sales_in_period_brazilian_format(mock_sales_usecase):
+    mock_sales_usecase.reset_mock()
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+    result = tools["get_total_sales_in_period"].invoke(
+        {"start_date": "15/01/2023", "end_date": "31/12/2023"}
+    )
+    mock_sales_usecase.get_total_sales_in_period.assert_called_once_with(
+        start_date=date(2023, 1, 15), end_date=date(2023, 12, 31)
+    )
+    assert "500.0" in str(result)
+
+
+def test_tool_get_total_sales_in_period_brazilian_dotted_and_dashed_format(mock_sales_usecase):
+    mock_sales_usecase.reset_mock()
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+    result = tools["get_total_sales_in_period"].invoke(
+        {"start_date": "01.05.2023", "end_date": "31-05-2023"}
+    )
+    mock_sales_usecase.get_total_sales_in_period.assert_called_once_with(
+        start_date=date(2023, 5, 1), end_date=date(2023, 5, 31)
+    )
+    assert "500.0" in str(result)
+
+
+def test_tool_get_total_sales_in_period_invalid_date(mock_sales_usecase):
+    mock_sales_usecase.reset_mock()
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+    result = tools["get_total_sales_in_period"].invoke(
+        {"start_date": "invalid-date", "end_date": "2023-01-31"}
+    )
+    assert "Erro de validação de data" in str(result)
+    mock_sales_usecase.get_total_sales_in_period.assert_not_called()
 
 
 def test_tool_compare_planned_vs_actual_quantity(mock_sales_usecase):

@@ -18,6 +18,7 @@ FORBIDDEN_KEYWORDS = [
     "UPDATE",
     "INSERT",
     "ATTACH",
+    "DETACH",
     "COPY",
     "ALTER",
     "CREATE",
@@ -32,6 +33,17 @@ FORBIDDEN_KEYWORDS = [
     "VACUUM",
     "EXPORT",
     "IMPORT",
+    "READ_CSV",
+    "READ_TEXT",
+    "READ_BLOB",
+    "READ_PARQUET",
+    "READ_JSON",
+    "GLOB",
+    "INSTALL",
+    "LOAD",
+    "SYSTEM",
+    "WRITE_PARQUET",
+    "WRITE_CSV",
 ]
 
 FORBIDDEN_PATTERN = re.compile(
@@ -53,7 +65,7 @@ class SecuredSQLQueryTool(BaseTool):
         "Utilize esta ferramenta APENAS como contingência (fallback) para perguntas ad-hoc não atendidas pelas Domain Tools. "
         "Qualquer instrução de mutação (DROP, UPDATE, DELETE, INSERT, etc.) será categoricamente rejeitada."
     )
-    args_schema: Type[BaseModel] = SQLQueryInput
+    args_schema = SQLQueryInput
     use_case: Any = None
 
     def __init__(self, use_case: SalesAnalysisUseCase, **kwargs: Any) -> None:

@@ -66,7 +66,7 @@ def test_metric_results_instantiation():
     top_l = TopLocationResult(top_locations=[{"local": "W1", "total_quantity": 100.0}], primary_location="W1", primary_quantity=100.0)
     assert top_l.primary_location == "W1"
 
-    tot = TotalSalesResult(1000.0, 50000.0, 25, "2023-01-01", "2023-12-31", 50.0)
+    tot = TotalSalesResult(1000.0, 50000.0, 25, "01/01/2023", "31/12/2023", 50.0)
     assert tot.total_quantity == 1000.0
 
     pva = PlannedVsActualResult(100.0, 120.0, 20.0, 120.0, "Exceeded")

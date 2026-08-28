@@ -51,6 +51,7 @@ class DuckDbSalesAdapter(SalesDataPort):
 
         logger.info("Loading sales dataset from %s into DuckDB...", self._dataset_path)
         normalized_path = str(csv_file.resolve()).replace("\\", "/")
+        escaped_path = normalized_path.replace("'", "''")
         
         # Load CSV using read_csv_auto with semicolon delimiter and robust date parsing
         query = f"""
@@ -65,9 +66,14 @@ class DuckDbSalesAdapter(SalesDataPort):
             CAST(actual_price AS DOUBLE) AS actual_price,
             CAST(service_level AS DOUBLE) AS service_level,
             NULLIF(NULLIF(TRIM(CAST(promotion_type AS VARCHAR)), 'None'), '') AS promotion_type
-        FROM read_csv_auto('{normalized_path}', delim=';', header=True)
+        FROM read_csv_auto('{escaped_path}', delim=';', header=True)
         """
         self._connection.execute(query)
+        # Harden DuckDB against arbitrary file reads/network access post-ingestion
+        try:
+            self._connection.execute("SET enable_external_access = false;")
+        except Exception as e:
+            logger.warning("Could not set enable_external_access=false: %s", e)
         logger.info("DuckDB table 'sales_data' initialized successfully.")
 
     def get_all_sales(self) -> Sequence[SaleRecord]:
@@ -149,7 +155,11 @@ class DuckDbSalesAdapter(SalesDataPort):
         elif isinstance(raw_date, date):
             parsed_date = raw_date
         elif isinstance(raw_date, str):
-            parsed_date = date.fromisoformat(raw_date)
+            cleaned_date = raw_date.strip()
+            try:
+                parsed_date = datetime.strptime(cleaned_date, "%d/%m/%Y").date()
+            except ValueError:
+                parsed_date = date.fromisoformat(cleaned_date)
         else:
             parsed_date = date.today()
 

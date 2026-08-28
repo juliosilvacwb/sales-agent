@@ -3,10 +3,11 @@ import logging
 from typing import Any, List, Optional, Sequence
 
 try:
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-except ImportError:
     from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+except ImportError:
+    from langchain.agents import AgentExecutor, create_tool_calling_agent  # type: ignore[attr-defined]
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import BaseTool
 
@@ -35,7 +36,7 @@ Sua missão é responder com precisão matemática, clareza e insights de negóc
 ### DICIONÁRIO DE DADOS (Tabela DuckDB: `sales_data`):
 - `product_id` (VARCHAR): Identificador único do produto (ex: 'Product_0001')
 - `local` (VARCHAR): Localidade / Armazém de distribuição (ex: 'Whse_A', 'Whse_S')
-- `date` (DATE): Data do registro de venda (formato YYYY-MM-DD)
+- `date` (DATE): Data do registro de venda (formato brasileiro DD/MM/YYYY)
 - `planned_quantity` (DOUBLE): Volume de vendas planejado/orçado
 - `actual_quantity` (DOUBLE): Volume de vendas efetivamente realizado
 - `planned_price` (DOUBLE): Preço unitário orçado/tabela
@@ -46,6 +47,7 @@ Sua missão é responder com precisão matemática, clareza e insights de negóc
 ### FORMA DE COMUNICAÇÃO:
 - Apresente os resultados de forma profissional, executiva e objetiva.
 - Formate valores monetários em R$ (ou na moeda de referência) e porcentagens com clareza.
+- Sempre formate e apresente datas no padrão brasileiro DD/MM/YYYY (dia/mês/ano) ao responder ao usuário.
 - Forneça breves observações analíticas para ajudar na tomada de decisão.
 """
 
@@ -58,10 +60,12 @@ class SalesAgent:
         llm: BaseChatModel,
         tools: Sequence[BaseTool],
         system_prompt: str = SYSTEM_PROMPT,
+        max_history_messages: int = 20,
         verbose: bool = False,
     ) -> None:
         self._llm = llm
         self._tools = list(tools)
+        self._max_history_messages = max(2, max_history_messages)
         self._prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
@@ -81,7 +85,7 @@ class SalesAgent:
             verbose=verbose,
             handle_parsing_errors=True,
         )
-        self._chat_history: List[Any] = []
+        self._chat_history: List[BaseMessage] = []
 
     def ask(self, question: str) -> str:
         """Executes the agent on the given question and returns the answer."""
@@ -89,11 +93,23 @@ class SalesAgent:
         result = self._executor.invoke(
             {
                 "input": question,
-                "chat_history": self._chat_history,
+                "chat_history": list(self._chat_history),
             }
         )
-        output = result.get("output", "")
-        return str(output)
+        output = str(result.get("output", ""))
+
+        # Append messages and apply sliding window to prevent unbounded context growth
+        self._chat_history.append(HumanMessage(content=question))
+        self._chat_history.append(AIMessage(content=output))
+        if len(self._chat_history) > self._max_history_messages:
+            self._chat_history = self._chat_history[-self._max_history_messages:]
+
+        return output
+
+    @property
+    def chat_history(self) -> List[BaseMessage]:
+        """Returns the current chat history."""
+        return list(self._chat_history)
 
     def reset_history(self) -> None:
         """Clears conversational history."""

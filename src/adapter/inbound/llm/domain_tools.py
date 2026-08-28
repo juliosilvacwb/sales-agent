@@ -1,8 +1,8 @@
 """LangChain Domain Tools wrapping SalesAnalysisUseCase."""
 import json
 import logging
-from dataclasses import asdict
-from datetime import date
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
 from typing import List, Optional
 
 from langchain_core.tools import BaseTool, tool
@@ -12,9 +12,39 @@ from src.application.port.inbound.sales_analysis_usecase import SalesAnalysisUse
 logger = logging.getLogger(__name__)
 
 
+def _parse_date(date_str: Optional[str]) -> Optional[date]:
+    """Parses date string supporting Brazilian format (DD/MM/YYYY) and ISO format (YYYY-MM-DD)."""
+    if not date_str or not date_str.strip():
+        return None
+    cleaned = date_str.strip()
+
+    # Try Brazilian formats first: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD/MM/YY
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y"):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            pass
+
+    # Try ISO format: YYYY-MM-DD
+    try:
+        return date.fromisoformat(cleaned)
+    except ValueError:
+        pass
+
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            pass
+
+    raise ValueError(
+        f"Formato de data inválido: '{date_str}'. Formatos aceitos: DD/MM/YYYY ou YYYY-MM-DD."
+    )
+
+
 def _to_json_str(obj: object) -> str:
     """Helper to convert dataclass or dict to JSON string formatted for LLM consumption."""
-    if hasattr(obj, "__dataclass_fields__"):
+    if is_dataclass(obj) and not isinstance(obj, type):
         data = asdict(obj)
     elif isinstance(obj, dict):
         data = obj
@@ -38,10 +68,14 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
         """Identifica as localidades com maior volume de vendas em ordem decrescente.
         
         Args:
-            limit: Quantidade de localidades a retornar (padrão: 5).
+            limit: Quantidade de localidades a retornar (padrão: 5, mínimo: 1, máximo: 100).
         """
-        logger.info("Tool invoked: get_top_locations_by_volume with limit=%s", limit)
-        result = sales_use_case.get_top_locations_by_volume(limit=limit)
+        try:
+            safe_limit = max(1, min(int(limit), 100))
+        except (ValueError, TypeError):
+            safe_limit = 5
+        logger.info("Tool invoked: get_top_locations_by_volume with limit=%s (safe_limit=%d)", limit, safe_limit)
+        result = sales_use_case.get_top_locations_by_volume(limit=safe_limit)
         return _to_json_str(result)
 
     @tool
@@ -52,12 +86,16 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
         """Calcula o total de vendas (volume, faturamento e ticket médio) em um período ou geral.
         
         Args:
-            start_date: Data inicial no formato YYYY-MM-DD (opcional).
-            end_date: Data final no formato YYYY-MM-DD (opcional).
+            start_date: Data inicial no formato brasileiro DD/MM/YYYY ou ISO YYYY-MM-DD (opcional).
+            end_date: Data final no formato brasileiro DD/MM/YYYY ou ISO YYYY-MM-DD (opcional).
         """
         logger.info("Tool invoked: get_total_sales_in_period (start=%s, end=%s)", start_date, end_date)
-        parsed_start = date.fromisoformat(start_date) if start_date else None
-        parsed_end = date.fromisoformat(end_date) if end_date else None
+        try:
+            parsed_start = _parse_date(start_date)
+            parsed_end = _parse_date(end_date)
+        except ValueError as e:
+            return f"Erro de validação de data: {str(e)}"
+
         result = sales_use_case.get_total_sales_in_period(
             start_date=parsed_start, end_date=parsed_end
         )

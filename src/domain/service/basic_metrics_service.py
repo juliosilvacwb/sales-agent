@@ -105,8 +105,8 @@ class BasicMetricsService:
             total_quantity=round(total_qty, 2),
             total_revenue=round(total_rev, 2),
             total_records=total_recs,
-            period_start=start_date.isoformat() if start_date else None,
-            period_end=end_date.isoformat() if end_date else None,
+            period_start=start_date.strftime("%d/%m/%Y") if start_date else None,
+            period_end=end_date.strftime("%d/%m/%Y") if end_date else None,
             average_ticket=round(avg_ticket, 2),
         )
 

@@ -87,6 +87,8 @@ def test_get_total_sales_in_period(sample_sales_records):
     )
     assert res_jan.total_quantity == 400.0
     assert res_jan.total_records == 2
+    assert res_jan.period_start == "01/01/2023"
+    assert res_jan.period_end == "31/01/2023"
 
 
 def test_compare_planned_vs_actual_quantity(sample_sales_records):
