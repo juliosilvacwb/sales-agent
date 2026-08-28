@@ -2,13 +2,9 @@
 import logging
 from typing import Any, List, Optional, Sequence
 
-try:
-    from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
-except ImportError:
-    from langchain.agents import AgentExecutor, create_tool_calling_agent  # type: ignore[attr-defined]
+from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -66,37 +62,21 @@ class SalesAgent:
         self._llm = llm
         self._tools = list(tools)
         self._max_history_messages = max(2, max_history_messages)
-        self._prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", system_prompt),
-                MessagesPlaceholder(variable_name="chat_history", optional=True),
-                ("human", "{input}"),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ]
-        )
-        self._agent = create_tool_calling_agent(
-            llm=self._llm,
-            tools=self._tools,
-            prompt=self._prompt,
-        )
-        self._executor = AgentExecutor(
-            agent=self._agent,
-            tools=self._tools,
-            verbose=verbose,
-            handle_parsing_errors=True,
-        )
         self._chat_history: List[BaseMessage] = []
+        
+        self._executor = create_agent(
+            model=self._llm,
+            tools=self._tools,
+            system_prompt=system_prompt,
+        )
 
     def ask(self, question: str) -> str:
         """Executes the agent on the given question and returns the answer."""
         logger.info("Agent received user query: '%s'", question)
-        result = self._executor.invoke(
-            {
-                "input": question,
-                "chat_history": list(self._chat_history),
-            }
-        )
-        output = str(result.get("output", ""))
+        messages = list(self._chat_history) + [HumanMessage(content=question)]
+        result = self._executor.invoke({"messages": messages})
+        
+        output = str(result["messages"][-1].content)
 
         # Append messages and apply sliding window to prevent unbounded context growth
         self._chat_history.append(HumanMessage(content=question))

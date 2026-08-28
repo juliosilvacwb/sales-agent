@@ -23,16 +23,10 @@ def test_sales_agent_initialization():
     mock_tools = [MagicMock()]
     mock_tools[0].name = "test_tool"
 
-    with patch("src.adapter.inbound.llm.sales_agent.create_tool_calling_agent") as mock_create_agent, \
-         patch("src.adapter.inbound.llm.sales_agent.AgentExecutor") as mock_executor_cls:
-        
-        mock_executor_instance = MagicMock()
-        mock_executor_cls.return_value = mock_executor_instance
-
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
         agent = SalesAgent(llm=mock_llm, tools=mock_tools)
         assert agent is not None
         mock_create_agent.assert_called_once()
-        mock_executor_cls.assert_called_once()
 
 
 def test_sales_agent_ask():
@@ -40,12 +34,10 @@ def test_sales_agent_ask():
     mock_llm = MagicMock()
     mock_tools = []
 
-    with patch("src.adapter.inbound.llm.sales_agent.create_tool_calling_agent"), \
-         patch("src.adapter.inbound.llm.sales_agent.AgentExecutor") as mock_executor_cls:
-        
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
         mock_executor_instance = MagicMock()
-        mock_executor_instance.invoke.return_value = {"output": "O produto mais vendido foi Prod_01."}
-        mock_executor_cls.return_value = mock_executor_instance
+        mock_executor_instance.invoke.return_value = {"messages": [MagicMock(content="O produto mais vendido foi Prod_01.")]}
+        mock_create_agent.return_value = mock_executor_instance
 
         agent = SalesAgent(llm=mock_llm, tools=mock_tools)
         response = agent.ask("Qual o produto mais vendido?")
@@ -62,12 +54,10 @@ def test_sales_agent_sliding_window_memory():
     mock_llm = MagicMock()
     mock_tools = []
 
-    with patch("src.adapter.inbound.llm.sales_agent.create_tool_calling_agent"), \
-         patch("src.adapter.inbound.llm.sales_agent.AgentExecutor") as mock_executor_cls:
-        
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
         mock_executor_instance = MagicMock()
-        mock_executor_instance.invoke.return_value = {"output": "Resposta padrão."}
-        mock_executor_cls.return_value = mock_executor_instance
+        mock_executor_instance.invoke.return_value = {"messages": [MagicMock(content="Resposta padrão.")]}
+        mock_create_agent.return_value = mock_executor_instance
 
         # Limit to 4 messages (2 exchanges)
         agent = SalesAgent(llm=mock_llm, tools=mock_tools, max_history_messages=4)
