@@ -38,7 +38,7 @@ O Sales Data Analysis Agent foi avaliado sob a ótica de Segurança da Informaç
 
 ### Task 010 - [Adapter-LLM] SecuredSQLQueryTool and Persistence Hardening
 
-- [x] [S001-01] [High] **Arbitrary File Read / Data Exfiltration via DuckDB Functions**
+- [APPROVED] [S001-01] [High] **Arbitrary File Read / Data Exfiltration via DuckDB Functions**
   - **Location:** `src/adapter/inbound/llm/sql_fallback_tool.py` → `FORBIDDEN_KEYWORDS` & `src/adapter/outbound/persistence/duckdb_sales_adapter.py` → `__init__()`
   - **Risk:** Instruções `SELECT` legítimas contendo funções nativas como `read_text('.env')`, `read_csv('/etc/passwd')` ou `glob('*')` poderiam contornar o filtro de comandos DML/DDL e expor arquivos confidenciais do servidor/container.
   - **Fix:**
@@ -50,7 +50,7 @@ O Sales Data Analysis Agent foi avaliado sob a ótica de Segurança da Informaç
 
 ### Task 009 - [Adapter-LLM] LangChain Domain Tools Input Validation & Date Parsing
 
-- [x] [S001-02] [Medium] **Unhandled Date Format Parsing & Brazilian Date Format Support**
+- [APPROVED] [S001-02] [Medium] **Unhandled Date Format Parsing & Brazilian Date Format Support**
   - **Location:** `src/adapter/inbound/llm/domain_tools.py` → `_parse_date()` & `get_total_sales_in_period()`
   - **Risk:** Usuários brasileiros e agentes LLM frequentemente utilizam datas no formato padrão brasileiro `DD/MM/YYYY` (ex: `01/01/2023`, `31/12/2023`) ou strings arbitrárias. Se a ferramenta utilizar apenas `date.fromisoformat` sem tratamento, datas em formato brasileiro causarão falhas e exceções `ValueError` não capturadas, interrompendo a interação do agente.
   - **Fix:**
@@ -58,7 +58,7 @@ O Sales Data Analysis Agent foi avaliado sob a ótica de Segurança da Informaç
     2. Tratar `ValueError` capturando exceções de formatos não reconhecidos e retornar mensagem estruturada orientando os formatos aceitos (`DD/MM/YYYY` ou `YYYY-MM-DD`).
   - **Validation:** Testes unitários validando: (a) parsing correto de datas brasileiras `DD/MM/YYYY`, (b) parsing de datas ISO `YYYY-MM-DD`, e (c) resposta amigável com mensagem de erro sem lançar exceção não tratada ao receber entradas inválidas.
 
-- [x] [S001-03] [Medium] **Unbounded Parameter Limit (Resource Exhaustion / DoS)**
+- [APPROVED] [S001-03] [Medium] **Unbounded Parameter Limit (Resource Exhaustion / DoS)**
   - **Location:** `src/adapter/inbound/llm/domain_tools.py` → `get_top_locations_by_volume()`
   - **Risk:** Parâmetros `limit` negativos ou excessivamente grandes (ex: `1000000`) podem causar respostas gigantescas ou comportamento imprevisto no slice de ordenação.
   - **Fix:** Normalizar o parâmetro `limit` com limites seguros, por exemplo: `max(1, min(int(limit), 100))`.
@@ -68,7 +68,7 @@ O Sales Data Analysis Agent foi avaliado sob a ótica de Segurança da Informaç
 
 ### Task 012 - [Adapter-Web/CLI] Conversational Memory Management
 
-- [x] [S001-04] [Low] **Unbounded Chat History Growth (Context Window & Cost Exhaustion)**
+- [APPROVED] [S001-04] [Low] **Unbounded Chat History Growth (Context Window & Cost Exhaustion)**
   - **Location:** `src/adapter/inbound/llm/sales_agent.py` → `SalesAgent`
   - **Risk:** A lista `_chat_history` acumula todas as interações indefinidamente, o que pode esgotar a janela de contexto de tokens do LLM ou elevar exponencialmente o custo da API em conversas longas.
   - **Fix:** Implementar truncamento ou janela deslizante (ex: reter no máximo as últimas 10 ou 20 mensagens) ou encapsular em `ConversationBufferWindowMemory`.
@@ -78,7 +78,7 @@ O Sales Data Analysis Agent foi avaliado sob a ótica de Segurança da Informaç
 
 ### Task 008 - [Adapter-Persistence] Ingestion Path Sanitization
 
-- [x] [S001-05] [Low] **Dataset File Path Special Character Sanitization**
+- [APPROVED] [S001-05] [Low] **Dataset File Path Special Character Sanitization**
   - **Location:** `src/adapter/outbound/persistence/duckdb_sales_adapter.py` → `_initialize_schema()`
   - **Risk:** Interpolação direta do caminho do arquivo em string SQL `f"... '{normalized_path}' ..."` pode falhar caso o caminho do dataset contenha aspas simples ou caracteres especiais.
   - **Fix:** Escapar aspas simples no path ou validar a estrutura do arquivo antes da interpolação na query de inicialização.

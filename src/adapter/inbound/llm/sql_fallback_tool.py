@@ -65,7 +65,7 @@ class SecuredSQLQueryTool(BaseTool):
         "Utilize esta ferramenta APENAS como contingência (fallback) para perguntas ad-hoc não atendidas pelas Domain Tools. "
         "Qualquer instrução de mutação (DROP, UPDATE, DELETE, INSERT, etc.) será categoricamente rejeitada."
     )
-    args_schema = SQLQueryInput
+    args_schema: Optional[Type[BaseModel]] = SQLQueryInput  # type: ignore
     use_case: Any = None
 
     def __init__(self, use_case: SalesAnalysisUseCase, **kwargs: Any) -> None:
