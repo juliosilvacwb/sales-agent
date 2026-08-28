@@ -46,11 +46,11 @@ Desenvolver um Agente de IA em Python que atue como uma interface conversacional
 
 ### 🟢 Phase 3 — Adapters (All tasks parallel-safe | Depends on Phase 2)
 
-- [ ] Task 008 - [Adapter-Persistence]: Implementar `DuckDbSalesAdapter` implementando `SalesDataPort` com carregamento do `sales.csv`. (Depends On: Task 005)
-- [ ] Task 009 - [Adapter-LLM]: Implementar as 10 LangChain Tools (`@tool`) encapsulando os UseCases definidos em Phase 2. (Depends On: Task 007)
-- [ ] Task 010 - [Adapter-LLM]: Implementar `SecuredSQLQueryTool` para Fallback com bloqueios DML/DDL estritos. (Depends On: Task 008)
-- [ ] Task 011 - [Adapter-External]: Configurar fábrica LLM Agnóstica carregando de variáveis `.env`. (Depends On: Task 001)
-- [ ] Task 012 - [Adapter-Web/CLI]: Implementar o Agente LangChain (Orquestrador) e o CLI (Chat loop). (Depends On: Task 009, Task 010, Task 011)
+- [x] Task 008 - [Adapter-Persistence]: Implementar `DuckDbSalesAdapter` implementando `SalesDataPort` com carregamento do `sales.csv`. (Depends On: Task 005)
+- [x] Task 009 - [Adapter-LLM]: Implementar as 10 LangChain Tools (`@tool`) encapsulando os UseCases definidos em Phase 2. (Depends On: Task 007)
+- [x] Task 010 - [Adapter-LLM]: Implementar `SecuredSQLQueryTool` para Fallback com bloqueios DML/DDL estritos. (Depends On: Task 008)
+- [x] Task 011 - [Adapter-External]: Configurar fábrica LLM Agnóstica carregando de variáveis `.env`. (Depends On: Task 001)
+- [x] Task 012 - [Adapter-Web/CLI]: Implementar o Agente LangChain (Orquestrador) e o CLI (Chat loop). (Depends On: Task 009, Task 010, Task 011)
 
 ### 🏁 Final Phase (Validation & Packaging)
 
