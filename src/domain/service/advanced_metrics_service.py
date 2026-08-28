@@ -45,8 +45,24 @@ class AdvancedMetricsService:
             for loc in loc_sla_totals
         }
 
-        worst_loc, worst_sla = min(loc_averages.items(), key=lambda item: item[1])
+        min_sla = min(loc_averages.values())
+        max_sla = max(loc_averages.values())
         overall_avg = round(total_sla / len(records), 4)
+
+        if abs(max_sla - min_sla) < 1e-4:
+            summary = (
+                f"All locations present an equal average service level of {min_sla * 100:.2f}% "
+                f"(overall fleet average: {overall_avg * 100:.2f}%). No logistics SLA bottleneck identified."
+            )
+            return ServiceLevelBottleneckResult(
+                worst_location="N/A",
+                worst_service_level=min_sla,
+                overall_average_service_level=overall_avg,
+                location_averages=loc_averages,
+                summary=summary,
+            )
+
+        worst_loc, worst_sla = min(loc_averages.items(), key=lambda item: item[1])
 
         summary = (
             f"The critical SLA bottleneck is at location '{worst_loc}' with an average service level "

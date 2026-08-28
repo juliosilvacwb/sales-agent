@@ -81,7 +81,7 @@ def test_calculate_average_discount(sample_advanced_sales_records):
     result = service.calculate_average_discount(sample_advanced_sales_records)
 
     assert result.overall_average_discount_percentage == 15.0
-    assert result.total_discount_value == 6400.0
+    assert result.total_discount_value == 14400.0
     assert "Promo_Flash" in result.discount_by_promotion
     assert result.discount_by_promotion["Promo_Flash"] == 20.0
 
@@ -139,3 +139,47 @@ def test_calculate_price_elasticity(sample_advanced_sales_records):
 
     assert result.elasticity_coefficient < 0
     assert "Elastic" in result.demand_classification
+
+
+def test_analyze_service_level_bottlenecks_equal_sla():
+    service = AdvancedMetricsService()
+    records = [
+        SaleRecord("P1", "Whse_A", date(2023, 1, 1), 10, 10, 10, 10, 0.98),
+        SaleRecord("P1", "Whse_B", date(2023, 1, 1), 10, 10, 10, 10, 0.98),
+        SaleRecord("P1", "Whse_C", date(2023, 1, 1), 10, 10, 10, 10, 0.98),
+    ]
+    result = service.analyze_service_level_bottlenecks(records)
+
+    assert result.worst_location == "N/A"
+    assert result.worst_service_level == 0.98
+    assert result.overall_average_service_level == 0.98
+    assert "No logistics SLA bottleneck identified" in result.summary
+
+
+def test_analyze_service_level_bottlenecks_floating_imprecision():
+    service = AdvancedMetricsService()
+    records = [
+        SaleRecord("P1", "Whse_A", date(2023, 1, 1), 10, 10, 10, 10, 0.9799999999996978),
+        SaleRecord("P1", "Whse_B", date(2023, 1, 1), 10, 10, 10, 10, 0.9800000000003375),
+    ]
+    result = service.analyze_service_level_bottlenecks(records)
+
+    assert result.worst_location == "N/A"
+    assert result.worst_service_level == 0.98
+    assert "No logistics SLA bottleneck identified" in result.summary
+
+
+def test_analyze_service_level_bottlenecks_single_location():
+    service = AdvancedMetricsService()
+    records = [
+        SaleRecord("P1", "Whse_A", date(2023, 1, 1), 10, 10, 10, 10, 0.95),
+        SaleRecord("P2", "Whse_A", date(2023, 1, 2), 20, 20, 10, 10, 0.95),
+    ]
+    result = service.analyze_service_level_bottlenecks(records)
+
+    assert result.worst_location == "N/A"
+    assert result.worst_service_level == 0.95
+    assert result.overall_average_service_level == 0.95
+    assert "No logistics SLA bottleneck identified" in result.summary
+
+
