@@ -14,20 +14,20 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 ### 🌟 Diferenciais de Arquitetura & Engenharia
 
 1. **Abordagem Híbrida Inteligente:**
-   - **10 Domain Tools Determinísticas:** Métricas críticas de negócio (ex: produto mais vendido, SLA logístico, impacto de promoções, déficit de receita, elasticidade) são calculadas em código puro Python, imunes a alucinações matemáticas de LLMs.
+   - **10 Domain Tools Determinísticas:** Métricas críticas de negócio (ex: produto mais vendido, SLA logístico, impacto de promoções, déficit de receita, elasticidade) utilizam pushdown de agregação SQL no DuckDB e formatação pura de domínio, imunes a alucinações matemáticas de LLMs.
    - **Secured SQL Fallback Tool:** Perguntas analíticas *ad-hoc* não previstas no catálogo de domínio são roteadas para uma ferramenta de consulta SQL com proteção rigorosa.
 2. **Interface Web Premium (FastAPI + Vanilla JS):** Acesso democratizado aos dados de vendas através de um frontend moderno (Dark Mode, layout responsivo) comunicando-se com a API REST de forma assíncrona, eliminando a dependência da CLI.
-3. **DuckDB In-Process (OLAP):** Mecanismo colunar vetorizado para processamento analítico submilisegundo em memória, sem custos ou complexidade de servidores de banco externos.
+3. **DuckDB In-Process (OLAP Pushdown Aggregations):** Mecanismo colunar vetorizado para processamento analítico de sub-segundo em memória. Cálculos matemáticos (`SUM`, `AVG`, `FILTER`, `GROUP BY`) são executados nativamente via SQL no C++ do DuckDB, mantendo consumo de memória O(1) e eliminando riscos de Out-of-Memory (OOM) para datasets com 50M+ registros.
 4. **Arquitetura Hexagonal (Ports & Adapters):** O núcleo de domínio (regras matemáticas e modelos de dados) possui zero acoplamento com LangChain, DuckDB ou bibliotecas web.
 5. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
 6. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
-7. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), e sanitização contra injeção de HTML/JS no frontend (`DOMPurify`), garantindo imutabilidade e integridade.
+7. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), e sanitização contra injeção de HTML/JS no frontend (`DOMPurify`).
 
 ---
 
 ## 🏛️ Arquitetura do Sistema
 
-O projeto adota o padrão **Hexagonal (Ports & Adapters)** para garantir testabilidade máxima, desacoplamento e facilidade de manutenção:
+O projeto adota o padrão **Hexagonal (Ports & Adapters)** com **Pushdown Analítico OLAP** para garantir testabilidade máxima, desacoplamento e escalabilidade enterprise:
 
 ```mermaid
 graph TB
@@ -50,20 +50,20 @@ graph TB
         WebChatAppService[WebChatApplicationService]
     end
 
-    subgraph Domain Core [Domínio Puro]
-        Models[Domain Models: SaleRecord, MetricResult, SessionContext]
-        BasicMetrics[BasicMetricsService]
-        AdvancedMetrics[AdvancedMetricsService]
-    end
-
     subgraph Outbound Ports [Ports - Saída]
-        DataPort[SalesDataPort Port]
+        DataPort[SalesDataPort Port: Pushdown Aggregations]
     end
 
     subgraph Outbound Adapters [Adapters - Saída]
-        DuckDBAdapter[DuckDbSalesAdapter - In-Memory OLAP]
+        DuckDBAdapter[DuckDbSalesAdapter - In-Memory OLAP Vectorized Engine]
         LLMFactory[LLMFactory - LangChain Provider]
         SessionMemory[InMemorySessionHistoryAdapter]
+    end
+
+    subgraph Domain Core [Domínio Puro]
+        Models[Domain Models: SaleRecord, MetricResult, Aggregations, SessionContext]
+        BasicMetrics[BasicMetricsService]
+        AdvancedMetrics[AdvancedMetricsService]
     end
 
     WebClient -->|POST /chat| FastAPI
@@ -77,12 +77,13 @@ graph TB
     DomainTools --> UseCasePort
     FallbackTool --> UseCasePort
     UseCasePort --> AppService
+    AppService --> DataPort
+    DataPort -->|Pushdown SQL: SUM, AVG, GROUP BY| DuckDBAdapter
+    DuckDBAdapter -->|Lightweight Aggregated DTOs| AppService
     AppService --> BasicMetrics
     AppService --> AdvancedMetrics
     BasicMetrics --> Models
     AdvancedMetrics --> Models
-    AppService --> DataPort
-    DataPort --> DuckDBAdapter
     Agent --> LLMFactory
 ```
 
@@ -113,33 +114,39 @@ challenge_ai_engineer/
 ├── dataset/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
-│   ├── business-requirements/     # PRD e requisitos funcionais (R001)
-│   ├── product-strategy/          # Estratégia de produto (PS001)
-│   └── architecture/              # Especificação técnica e tasks (T001)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001, R002, R003)
+│   ├── architecture/              # Especificações técnicas e checklists (T001, T002, T003)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001, S002, S003, S004)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001, TEST002, TEST003, TEST004)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001, Q002, Q003, Q004)
 ├── src/
 │   ├── domain/                    # DOMÍNIO PURO (Zero frameworks)
-│   │   ├── model/                 # SaleRecord, MetricResult
+│   │   ├── model/                 # SaleRecord, MetricResult, AggregationModels, SessionContext
 │   │   └── service/               # BasicMetricsService, AdvancedMetricsService
 │   ├── application/               # CASOS DE USO E CONTRATOS
+│   │   ├── dto/                   # ChatRequestDTO, ChatResponseDTO
 │   │   ├── port/
-│   │   │   ├── inbound/           # SalesAnalysisUseCase
-│   │   │   └── outbound/          # SalesDataPort
-│   │   └── service/               # SalesMetricsApplicationService
+│   │   │   ├── inbound/           # SalesAnalysisUseCase, WebChatUseCase
+│   │   │   └── outbound/          # SalesDataPort (Pushdown OLAP Contracts)
+│   │   └── service/               # SalesMetricsApplicationService, WebChatApplicationService
 │   └── adapter/                   # ADAPTERS (Tecnologias externas)
 │       ├── inbound/
-│       │   ├── cli/               # main.py (Interface do usuário)
+│       │   ├── cli/               # main.py (Interface terminal)
+│       │   ├── web/               # chat_controller.py, static/ (HTML, CSS, JS)
 │       │   └── llm/               # sales_agent.py, domain_tools.py, sql_fallback_tool.py
 │       └── outbound/
 │           ├── llm/               # llm_factory.py (OpenAI / Anthropic / Gemini)
-│           └── persistence/       # duckdb_sales_adapter.py (DuckDB OLAP)
+│           ├── memory/            # session_memory_adapter.py (LRU Cache)
+│           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP)
 ├── tests/
-│   ├── unit/                      # Testes unitários com mocks (100% isolamento)
-│   └── integration/               # Testes End-to-End e Happy Path integrados
+│   ├── unit/                      # Testes unitários de domínio, portas e adapters (100% isolamento)
+│   └── integration/               # Testes de integração End-to-End e paridade analítica
 ├── .env.example                   # Modelo de variáveis de ambiente
 ├── Dockerfile                     # Empacotamento Docker da aplicação
 ├── pyproject.toml                 # Configurações do Pytest e Linters
 └── requirements.txt               # Dependências do projeto
 ```
+
 
 ---
 

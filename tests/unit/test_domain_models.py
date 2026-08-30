@@ -1,18 +1,33 @@
 """Unit tests for domain models and value objects."""
+from dataclasses import FrozenInstanceError
 from datetime import date
-from src.domain.model.sale_record import SaleRecord
-from src.domain.model.metric_result import (
-    TopSellingProductResult,
-    TopLocationResult,
-    TotalSalesResult,
-    PlannedVsActualResult,
-    PromotionImpactResult,
-    ServiceLevelBottleneckResult,
-    RevenueDeficitResult,
-    AverageDiscountResult,
-    SeasonalityResult,
-    PriceElasticityResult,
+import pytest
+
+from src.domain.model.aggregation_models import (
+    AverageDiscountAggregation,
+    LocationSalesAggregation,
+    PlannedVsActualAggregation,
+    PriceElasticityAggregation,
+    ProductAggregation,
+    PromotionImpactAggregation,
+    RevenueDeficitAggregation,
+    SeasonalityAggregation,
+    ServiceLevelBottleneckAggregation,
+    TotalSalesAggregation,
 )
+from src.domain.model.metric_result import (
+    AverageDiscountResult,
+    PlannedVsActualResult,
+    PriceElasticityResult,
+    PromotionImpactResult,
+    RevenueDeficitResult,
+    SeasonalityResult,
+    ServiceLevelBottleneckResult,
+    TopLocationResult,
+    TopSellingProductResult,
+    TotalSalesResult,
+)
+from src.domain.model.sale_record import SaleRecord
 
 
 def test_sale_record_properties():
@@ -63,7 +78,11 @@ def test_metric_results_instantiation():
     top_p = TopSellingProductResult("P1", 500.0, 25000.0, 10)
     assert top_p.product_id == "P1"
 
-    top_l = TopLocationResult(top_locations=[{"local": "W1", "total_quantity": 100.0}], primary_location="W1", primary_quantity=100.0)
+    top_l = TopLocationResult(
+        top_locations=[{"local": "W1", "total_quantity": 100.0}],
+        primary_location="W1",
+        primary_quantity=100.0,
+    )
     assert top_l.primary_location == "W1"
 
     tot = TotalSalesResult(1000.0, 50000.0, 25, "01/01/2023", "31/12/2023", 50.0)
@@ -89,3 +108,55 @@ def test_metric_results_instantiation():
 
     elas = PriceElasticityResult(-1.5, -10.0, 15.0, "Elastic", "Summary")
     assert elas.elasticity_coefficient == -1.5
+
+
+def test_aggregation_models_instantiation():
+    """Verify instantiation of all 10 domain aggregation models (TEST003-01)."""
+    p_agg = ProductAggregation("Prod_1", 100.0, 1000.0, 5)
+    assert p_agg.product_id == "Prod_1"
+    assert p_agg.total_quantity == 100.0
+    assert p_agg.total_revenue == 1000.0
+    assert p_agg.total_records == 5
+
+    loc_agg = LocationSalesAggregation("Whse_A", 200.0, 4000.0)
+    assert loc_agg.local == "Whse_A"
+    assert loc_agg.total_quantity == 200.0
+    assert loc_agg.total_revenue == 4000.0
+
+    tot_agg = TotalSalesAggregation(300.0, 6000.0, 10)
+    assert tot_agg.total_quantity == 300.0
+    assert tot_agg.total_revenue == 6000.0
+    assert tot_agg.total_records == 10
+
+    pva_agg = PlannedVsActualAggregation(500.0, 450.0, 8)
+    assert pva_agg.total_planned_quantity == 500.0
+    assert pva_agg.total_actual_quantity == 450.0
+
+    promo_agg = PromotionImpactAggregation(2, 4, 150.0, 300.0, 45.0, 50.0, 10.0, 6)
+    assert promo_agg.promoted_sales_count == 2
+    assert promo_agg.non_promoted_sales_count == 4
+
+    sla_agg = ServiceLevelBottleneckAggregation({"Whse_A": 0.95}, 0.95, 5)
+    assert sla_agg.location_averages["Whse_A"] == 0.95
+
+    rev_agg = RevenueDeficitAggregation(10000.0, 9000.0, 10)
+    assert rev_agg.total_planned_revenue == 10000.0
+    assert rev_agg.total_actual_revenue == 9000.0
+
+    disc_agg = AverageDiscountAggregation(10000.0, 9000.0, 1000.0, 10.0, {"PromoA": 10.0}, 10)
+    assert disc_agg.overall_average_discount_percentage == 10.0
+    assert disc_agg.total_discount_value == 1000.0
+
+    seas_agg = SeasonalityAggregation({"2023-01": 200.0}, 5)
+    assert seas_agg.monthly_volumes["2023-01"] == 200.0
+
+    elas_agg = PriceElasticityAggregation(45.0, 50.0, 150.0, 100.0, 5, 5, 10)
+    assert elas_agg.promoted_avg_price == 45.0
+    assert elas_agg.non_promoted_avg_price == 50.0
+
+
+def test_aggregation_models_immutability():
+    """Verify strict immutability of aggregation models (TEST003-02)."""
+    p_agg = ProductAggregation("P1", 100.0, 500.0, 1)
+    with pytest.raises((FrozenInstanceError, TypeError)):
+        p_agg.total_quantity = 200.0  # type: ignore

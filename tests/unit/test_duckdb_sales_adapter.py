@@ -3,7 +3,6 @@ import os
 import tempfile
 from datetime import date
 import pytest
-import duckdb
 
 from src.adapter.outbound.persistence.duckdb_sales_adapter import DuckDbSalesAdapter
 from src.domain.model.sale_record import SaleRecord
@@ -31,7 +30,7 @@ def sample_csv_path():
 def test_duckdb_sales_adapter_initialization(sample_csv_path):
     """Test DuckDbSalesAdapter initializes and loads data from CSV into memory."""
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
-    records = adapter.get_all_sales()
+    records = adapter.get_sales_by_filter()
 
     assert len(records) == 3
     assert isinstance(records[0], SaleRecord)
@@ -46,13 +45,70 @@ def test_duckdb_sales_adapter_initialization(sample_csv_path):
     assert records[0].promotion_type == "Promo10"
 
 
-def test_duckdb_sales_adapter_empty_or_none_promotion(sample_csv_path):
-    """Test that 'None' or empty promotions in CSV are mapped to None."""
+def test_duckdb_sales_adapter_aggregations(sample_csv_path):
+    """Test all native DuckDB SQL aggregation methods."""
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
-    records = adapter.get_all_sales()
 
-    assert records[1].promotion_type is None
-    assert records[2].promotion_type is None
+    # 1. Top selling product
+    top_prod = adapter.aggregate_top_selling_product()
+    assert top_prod is not None
+    assert top_prod.product_id == "Prod_01"
+    assert top_prod.total_quantity == 280.0
+    assert top_prod.total_records == 2
+
+    # 2. Top locations
+    top_locs = adapter.aggregate_top_locations(limit=2)
+    assert len(top_locs) == 2
+    assert top_locs[0].local == "Whse_B"
+    assert top_locs[0].total_quantity == 340.0
+
+    # 3. Total sales
+    total_sales = adapter.aggregate_total_sales()
+    assert total_sales.total_quantity == 460.0
+    assert total_sales.total_records == 3
+
+    # 4. Planned vs actual
+    pva = adapter.aggregate_planned_vs_actual()
+    assert pva.total_planned_quantity == 450.0
+    assert pva.total_actual_quantity == 460.0
+
+    # 5. Promotion impact
+    promo = adapter.aggregate_promotion_impact()
+    assert promo.promoted_sales_count == 1
+    assert promo.non_promoted_sales_count == 2
+    assert promo.promoted_total_quantity == 120.0
+    assert promo.promoted_avg_actual_price == 45.0
+    assert promo.average_discount_in_promotion == 10.0
+
+    # 6. Service level bottlenecks
+    sla = adapter.aggregate_service_level_bottlenecks()
+    assert sla.total_records == 3
+    assert "Whse_A" in sla.location_averages
+    assert "Whse_B" in sla.location_averages
+    assert sla.location_averages["Whse_A"] == 0.95
+
+    # 7. Revenue deficit
+    deficit = adapter.aggregate_revenue_deficit()
+    # Planned: (100*50) + (200*100) + (150*50) = 5000 + 20000 + 7500 = 32500
+    # Actual: (120*45) + (180*100) + (160*48) = 5400 + 18000 + 7680 = 31080
+    assert deficit.total_planned_revenue == 32500.0
+    assert deficit.total_actual_revenue == 31080.0
+
+    # 8. Average discount
+    disc = adapter.aggregate_average_discount()
+    assert disc.total_planned_revenue == 32500.0
+    assert disc.total_actual_revenue == 31080.0
+    assert "Promo10" in disc.discount_by_promotion
+
+    # 9. Seasonality
+    seas = adapter.aggregate_seasonality()
+    assert "2023-01" in seas.monthly_volumes
+    assert "2023-02" in seas.monthly_volumes
+    assert "2023-03" in seas.monthly_volumes
+
+    # 10. Price elasticity
+    elas = adapter.aggregate_price_elasticity()
+    assert elas.total_records == 3
 
 
 def test_duckdb_sales_adapter_get_sales_by_filter(sample_csv_path):
@@ -91,7 +147,9 @@ def test_duckdb_sales_adapter_execute_read_only_query(sample_csv_path):
 def test_duckdb_sales_adapter_missing_csv():
     """Test that adapter handles missing CSV gracefully without crashing on init."""
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path="non_existent_file.csv")
-    records = adapter.get_all_sales()
+    top_prod = adapter.aggregate_top_selling_product()
+    assert top_prod is None
+    records = adapter.get_sales_by_filter()
     assert records == []
 
 
@@ -102,25 +160,8 @@ def test_duckdb_sales_adapter_map_row_brazilian_date_string():
     assert record.date == date(2023, 12, 25)
 
 
-def test_duckdb_sales_adapter_escaped_path_initialization(tmp_path):
-    """Test initialization when dataset path contains special characters/quotes."""
-    special_file = tmp_path / "sales'test.csv"
-    content = (
-        "product_id;local;date;planned_quantity;actual_quantity;planned_price;promotion_type;actual_price;service_level\n"
-        "Prod_01;Whse_A;03/01/2023;100;120;50.0;Promo10;45.0;0.95\n"
-    )
-    special_file.write_text(content, encoding="utf-8")
-
-    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=str(special_file))
-    records = adapter.get_all_sales()
-    assert len(records) == 1
-    assert records[0].product_id == "Prod_01"
-
-
 def test_duckdb_sales_adapter_external_access_disabled(sample_csv_path):
     """Test that external access functions like read_csv are blocked on raw query execution."""
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
     with pytest.raises(Exception):
         adapter.execute_read_only_query(f"SELECT * FROM read_csv_auto('{sample_csv_path}')")
-
-

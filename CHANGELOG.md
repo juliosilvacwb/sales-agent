@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-30
+
+### Added
+
+- **OLAP Pushdown Aggregations (T003):** Migração completa dos cálculos matemáticos de métricas básicas e avançadas para o motor SQL nativo do DuckDB, garantindo latência de sub-segundo e escalabilidade para 50M+ registros.
+- **Domain Value Objects de Agregação:** Criação de 10 novos modelos imutáveis em `src/domain/model/aggregation_models.py` (`ProductAggregation`, `LocationSalesAggregation`, `TotalSalesAggregation`, `PlannedVsActualAggregation`, `PromotionImpactAggregation`, `ServiceLevelBottleneckAggregation`, `RevenueDeficitAggregation`, `AverageDiscountAggregation`, `SeasonalityAggregation`, `PriceElasticityAggregation`).
+- **Contratos de Agregação em `SalesDataPort`:** Definição de métodos analíticos explícitos na porta de saída (`aggregate_top_selling_product`, `aggregate_top_locations`, `aggregate_total_sales`, etc.).
+- **Queries SQL Vetorizadas no `DuckDbSalesAdapter`:** Implementação de consultas otimizadas utilizando `SUM`, `AVG`, `FILTER (WHERE ...)`, `GROUP BY` e `ORDER BY` diretamente no banco colunar em memória.
+- **Suíte de Testes de Paridade e Integração:** Criação de `tests/integration/test_sales_metrics_integration.py` validando 100% de paridade matemática e funcional entre o pushdown SQL e as regras de negócio.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R003-analytical-engine-scalability.md`, `T003-analytical-engine-scalability.md`, `TEST003-analytical-engine-scalability.md`, `S003-analytical-engine-scalability.md` e `Q003-analytical-engine-scalability.md`.
+
+### Changed
+
+- **Refatoração de `BasicMetricsService` e `AdvancedMetricsService`:** Os serviços de domínio agora recebem DTOs pré-agregados compactos em vez de sequências de registros brutos (`Sequence[SaleRecord]`), mantendo o domínio puro e as regras de negócio isoladas.
+- **Orquestração em `SalesMetricsApplicationService`:** Atualizado para delegar a recuperação de agregações para a `SalesDataPort` e repassar os resultados aos serviços de domínio.
+
+### Removed
+
+- **Eliminação de `get_all_sales()`:** O método `get_all_sales()` foi completamente removido de `SalesDataPort` e `DuckDbSalesAdapter` para mitigar definitivamente riscos de exaustão de memória (OOM). Para consultas filtradas de registros, utiliza-se `get_sales_by_filter()`.
+
+### Performance & Security
+
+- **Consumo de Memória O(1):** A aplicação Python não transfere mais datasets brutos sobre o barramento de memória, mantendo a pegada de memória constante mesmo sob cargas analíticas de dezenas de milhões de linhas.
+- **Hardening DuckDB:** Parametrização integral das consultas de agregação e manutenção do bloqueio de acesso a arquivos externos (`enable_external_access = false`).
+
 ## [1.1.0] - 2026-08-28
+
 
 ### Added
 

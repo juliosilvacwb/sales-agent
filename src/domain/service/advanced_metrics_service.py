@@ -1,10 +1,16 @@
 """Domain Service for Advanced / Complex Sales Metrics.
 
-Zero framework dependencies - pure business logic and mathematical models.
+Zero framework dependencies - pure business logic and mathematical models over aggregated structures.
 """
-from collections import defaultdict
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional
 
+from src.domain.model.aggregation_models import (
+    AverageDiscountAggregation,
+    PriceElasticityAggregation,
+    RevenueDeficitAggregation,
+    SeasonalityAggregation,
+    ServiceLevelBottleneckAggregation,
+)
 from src.domain.model.metric_result import (
     AverageDiscountResult,
     PriceElasticityResult,
@@ -12,17 +18,16 @@ from src.domain.model.metric_result import (
     SeasonalityResult,
     ServiceLevelBottleneckResult,
 )
-from src.domain.model.sale_record import SaleRecord
 
 
 class AdvancedMetricsService:
-    """Calculates deterministic advanced sales metrics."""
+    """Calculates deterministic advanced sales metrics from aggregated database inputs."""
 
     def analyze_service_level_bottlenecks(
-        self, records: Sequence[SaleRecord]
+        self, aggregation: Optional[ServiceLevelBottleneckAggregation]
     ) -> ServiceLevelBottleneckResult:
         """Identifies which location has the lowest average service level (logistics SLA bottleneck)."""
-        if not records:
+        if not aggregation or aggregation.total_records == 0 or not aggregation.location_averages:
             return ServiceLevelBottleneckResult(
                 worst_location="N/A",
                 worst_service_level=0.0,
@@ -31,23 +36,13 @@ class AdvancedMetricsService:
                 summary="No records to analyze for SLA bottlenecks",
             )
 
-        loc_sla_totals = defaultdict(float)
-        loc_counts = defaultdict(int)
-        total_sla = 0.0
-
-        for r in records:
-            loc_sla_totals[r.local] += r.service_level
-            loc_counts[r.local] += 1
-            total_sla += r.service_level
-
         loc_averages: Dict[str, float] = {
-            loc: round(loc_sla_totals[loc] / loc_counts[loc], 4)
-            for loc in loc_sla_totals
+            loc: round(val, 4) for loc, val in aggregation.location_averages.items()
         }
 
         min_sla = min(loc_averages.values())
         max_sla = max(loc_averages.values())
-        overall_avg = round(total_sla / len(records), 4)
+        overall_avg = round(aggregation.overall_average_service_level, 4)
 
         if min_sla == max_sla:
             summary = (
@@ -78,10 +73,10 @@ class AdvancedMetricsService:
         )
 
     def calculate_revenue_deficit(
-        self, records: Sequence[SaleRecord]
+        self, aggregation: Optional[RevenueDeficitAggregation]
     ) -> RevenueDeficitResult:
         """Calculates estimated financial loss/deficit due to planned vs actual variance."""
-        if not records:
+        if not aggregation or aggregation.total_records == 0:
             return RevenueDeficitResult(
                 total_planned_revenue=0.0,
                 total_actual_revenue=0.0,
@@ -91,8 +86,8 @@ class AdvancedMetricsService:
                 summary="No records to calculate revenue deficit",
             )
 
-        total_planned_rev = sum(r.planned_revenue for r in records)
-        total_actual_rev = sum(r.actual_revenue for r in records)
+        total_planned_rev = aggregation.total_planned_revenue
+        total_actual_rev = aggregation.total_actual_revenue
         deficit = total_planned_rev - total_actual_rev
         pct = (deficit / total_planned_rev * 100.0) if total_planned_rev > 0 else 0.0
         has_deficit = deficit > 0
@@ -120,10 +115,10 @@ class AdvancedMetricsService:
         )
 
     def calculate_average_discount(
-        self, records: Sequence[SaleRecord]
+        self, aggregation: Optional[AverageDiscountAggregation]
     ) -> AverageDiscountResult:
         """Calculates average discount margin applied against planned price."""
-        if not records:
+        if not aggregation or aggregation.total_records == 0:
             return AverageDiscountResult(
                 overall_average_discount_percentage=0.0,
                 total_planned_revenue=0.0,
@@ -132,47 +127,23 @@ class AdvancedMetricsService:
                 discount_by_promotion={},
             )
 
-        total_planned_rev = sum(r.planned_revenue for r in records)
-        total_actual_rev = sum(r.actual_revenue for r in records)
-        total_discount_val = sum(
-            max(0.0, r.planned_revenue - r.actual_revenue)
-            for r in records
-            if r.planned_price > r.actual_price
-        )
-
-        discount_rates = [
-            r.discount_rate for r in records if r.planned_price > 0 and r.discount_rate > 0
-        ]
-        avg_discount_pct = (
-            (sum(discount_rates) / len(discount_rates) * 100.0) if discount_rates else 0.0
-        )
-
-        # Discount breakdown by promotion type
-        promo_totals = defaultdict(float)
-        promo_counts = defaultdict(int)
-        for r in records:
-            if r.planned_price > 0 and r.discount_rate > 0:
-                promo_key = str(r.promotion_type).strip() if r.promotion_type else "None"
-                promo_totals[promo_key] += r.discount_rate * 100.0
-                promo_counts[promo_key] += 1
-
         promo_breakdown = {
-            k: round(promo_totals[k] / promo_counts[k], 2) for k in promo_totals
+            k: round(v, 2) for k, v in aggregation.discount_by_promotion.items()
         }
 
         return AverageDiscountResult(
-            overall_average_discount_percentage=round(avg_discount_pct, 2),
-            total_planned_revenue=round(total_planned_rev, 2),
-            total_actual_revenue=round(total_actual_rev, 2),
-            total_discount_value=round(total_discount_val, 2),
+            overall_average_discount_percentage=round(aggregation.overall_average_discount_percentage, 2),
+            total_planned_revenue=round(aggregation.total_planned_revenue, 2),
+            total_actual_revenue=round(aggregation.total_actual_revenue, 2),
+            total_discount_value=round(aggregation.total_discount_value, 2),
             discount_by_promotion=promo_breakdown,
         )
 
     def identify_sales_seasonality(
-        self, records: Sequence[SaleRecord]
+        self, aggregation: Optional[SeasonalityAggregation]
     ) -> SeasonalityResult:
         """Analyzes monthly sales volume to identify peaks, troughs, and seasonality patterns."""
-        if not records:
+        if not aggregation or aggregation.total_records == 0 or not aggregation.monthly_volumes:
             return SeasonalityResult(
                 monthly_volumes={},
                 peak_month="N/A",
@@ -182,25 +153,16 @@ class AdvancedMetricsService:
                 seasonality_pattern="No data to analyze",
             )
 
-        monthly_vols = defaultdict(float)
+        sorted_months = sorted(aggregation.monthly_volumes.keys())
+        monthly_dict = {m: round(aggregation.monthly_volumes[m], 2) for m in sorted_months}
 
-        for r in records:
-            month_key = r.date.strftime("%Y-%m") if r.date else "Unknown"
-            monthly_vols[month_key] += r.actual_quantity
-
-        if not monthly_vols:
-            return SeasonalityResult()
-
-        sorted_months = sorted(monthly_vols.keys())
-        monthly_dict = {m: round(monthly_vols[m], 2) for m in sorted_months}
-
-        peak_m, peak_v = max(monthly_vols.items(), key=lambda x: x[1])
-        lowest_m, lowest_v = min(monthly_vols.items(), key=lambda x: x[1])
+        peak_m, peak_v = max(aggregation.monthly_volumes.items(), key=lambda x: x[1])
+        lowest_m, lowest_v = min(aggregation.monthly_volumes.items(), key=lambda x: x[1])
 
         pattern = (
             f"Peak sales volume occurred in {peak_m} ({peak_v:,.2f} units), while lowest volume "
             f"occurred in {lowest_m} ({lowest_v:,.2f} units). "
-            f"Across {len(monthly_vols)} months recorded."
+            f"Across {len(aggregation.monthly_volumes)} months recorded."
         )
 
         return SeasonalityResult(
@@ -213,13 +175,13 @@ class AdvancedMetricsService:
         )
 
     def calculate_price_elasticity(
-        self, records: Sequence[SaleRecord]
+        self, aggregation: Optional[PriceElasticityAggregation]
     ) -> PriceElasticityResult:
         """Calculates Price Elasticity of Demand comparing promotional vs baseline sales.
-        
+
         Elasticity (PED) = (% Delta Quantity) / (% Delta Price)
         """
-        if not records:
+        if not aggregation or aggregation.total_records == 0:
             return PriceElasticityResult(
                 elasticity_coefficient=0.0,
                 percentage_change_in_price=0.0,
@@ -228,15 +190,7 @@ class AdvancedMetricsService:
                 summary="Insufficient data to compute elasticity",
             )
 
-        promoted = [r for r in records if r.is_promoted]
-        non_promoted = [r for r in records if not r.is_promoted]
-
-        if not promoted or not non_promoted:
-            # Fallback: compare transactions with discounts vs no discounts
-            promoted = [r for r in records if r.discount_rate > 0.0]
-            non_promoted = [r for r in records if r.discount_rate <= 0.0]
-
-        if not promoted or not non_promoted:
+        if aggregation.promoted_count == 0 or aggregation.non_promoted_count == 0:
             return PriceElasticityResult(
                 elasticity_coefficient=0.0,
                 percentage_change_in_price=0.0,
@@ -245,11 +199,11 @@ class AdvancedMetricsService:
                 summary="Both promotional and regular baseline records are required to calculate price elasticity.",
             )
 
-        base_avg_price = sum(r.actual_price for r in non_promoted) / len(non_promoted)
-        promo_avg_price = sum(r.actual_price for r in promoted) / len(promoted)
+        base_avg_price = aggregation.non_promoted_avg_price
+        promo_avg_price = aggregation.promoted_avg_price
 
-        base_avg_qty = sum(r.actual_quantity for r in non_promoted) / len(non_promoted)
-        promo_avg_qty = sum(r.actual_quantity for r in promoted) / len(promoted)
+        base_avg_qty = aggregation.non_promoted_avg_qty
+        promo_avg_qty = aggregation.promoted_avg_qty
 
         if base_avg_price <= 0 or base_avg_qty <= 0:
             return PriceElasticityResult(
@@ -260,9 +214,7 @@ class AdvancedMetricsService:
                 summary="Base price or quantity is zero; cannot compute elasticity.",
             )
 
-        # % change in price = (Promo Price - Base Price) / Base Price
         pct_delta_p = ((promo_avg_price - base_avg_price) / base_avg_price) * 100.0
-        # % change in quantity = (Promo Qty - Base Qty) / Base Qty
         pct_delta_q = ((promo_avg_qty - base_avg_qty) / base_avg_qty) * 100.0
 
         if pct_delta_p == 0.0:

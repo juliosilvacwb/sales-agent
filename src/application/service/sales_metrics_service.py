@@ -38,15 +38,15 @@ class SalesMetricsApplicationService(SalesAnalysisUseCase):
 
     def get_top_selling_product(self) -> TopSellingProductResult:
         """Identifies the product with the highest total sales volume."""
-        logger.info("Executing use case: get_top_selling_product")
-        records = self._sales_data_port.get_all_sales()
-        return self._basic_metrics.get_top_selling_product(records)
+        logger.info("Executing use case: get_top_selling_product via SQL aggregation pushdown")
+        agg = self._sales_data_port.aggregate_top_selling_product()
+        return self._basic_metrics.get_top_selling_product(agg)
 
     def get_top_locations_by_volume(self, limit: int = 5) -> TopLocationResult:
         """Identifies locations sorted by highest sales volume."""
         logger.info("Executing use case: get_top_locations_by_volume (limit=%d)", limit)
-        records = self._sales_data_port.get_all_sales()
-        return self._basic_metrics.get_top_locations_by_volume(records, limit=limit)
+        aggs = self._sales_data_port.aggregate_top_locations(limit=limit)
+        return self._basic_metrics.get_top_locations_by_volume(aggs, limit=limit)
 
     def get_total_sales_in_period(
         self,
@@ -59,52 +59,52 @@ class SalesMetricsApplicationService(SalesAnalysisUseCase):
             start_date,
             end_date,
         )
-        records = self._sales_data_port.get_all_sales()
+        agg = self._sales_data_port.aggregate_total_sales(start_date=start_date, end_date=end_date)
         return self._basic_metrics.get_total_sales_in_period(
-            records, start_date=start_date, end_date=end_date
+            agg, start_date=start_date, end_date=end_date
         )
 
     def compare_planned_vs_actual_quantity(self) -> PlannedVsActualResult:
         """Compares budgeted planned quantities against actual realized quantities."""
         logger.info("Executing use case: compare_planned_vs_actual_quantity")
-        records = self._sales_data_port.get_all_sales()
-        return self._basic_metrics.compare_planned_vs_actual_quantity(records)
+        agg = self._sales_data_port.aggregate_planned_vs_actual()
+        return self._basic_metrics.compare_planned_vs_actual_quantity(agg)
 
     def analyze_promotion_impact(self) -> PromotionImpactResult:
         """Analyzes promotional lift, discounts, and volume impact."""
         logger.info("Executing use case: analyze_promotion_impact")
-        records = self._sales_data_port.get_all_sales()
-        return self._basic_metrics.analyze_promotion_impact(records)
+        agg = self._sales_data_port.aggregate_promotion_impact()
+        return self._basic_metrics.analyze_promotion_impact(agg)
 
     def analyze_service_level_bottlenecks(self) -> ServiceLevelBottleneckResult:
         """Identifies logistics service level (SLA) bottlenecks across locations."""
         logger.info("Executing use case: analyze_service_level_bottlenecks")
-        records = self._sales_data_port.get_all_sales()
-        return self._advanced_metrics.analyze_service_level_bottlenecks(records)
+        agg = self._sales_data_port.aggregate_service_level_bottlenecks()
+        return self._advanced_metrics.analyze_service_level_bottlenecks(agg)
 
     def calculate_revenue_deficit(self) -> RevenueDeficitResult:
         """Calculates estimated financial loss/deficit due to planned vs actual variance."""
         logger.info("Executing use case: calculate_revenue_deficit")
-        records = self._sales_data_port.get_all_sales()
-        return self._advanced_metrics.calculate_revenue_deficit(records)
+        agg = self._sales_data_port.aggregate_revenue_deficit()
+        return self._advanced_metrics.calculate_revenue_deficit(agg)
 
     def calculate_average_discount(self) -> AverageDiscountResult:
         """Calculates average discount margin applied against planned prices."""
         logger.info("Executing use case: calculate_average_discount")
-        records = self._sales_data_port.get_all_sales()
-        return self._advanced_metrics.calculate_average_discount(records)
+        agg = self._sales_data_port.aggregate_average_discount()
+        return self._advanced_metrics.calculate_average_discount(agg)
 
     def identify_sales_seasonality(self) -> SeasonalityResult:
         """Identifies monthly peaks, valleys, and temporal sales patterns."""
         logger.info("Executing use case: identify_sales_seasonality")
-        records = self._sales_data_port.get_all_sales()
-        return self._advanced_metrics.identify_sales_seasonality(records)
+        agg = self._sales_data_port.aggregate_seasonality()
+        return self._advanced_metrics.identify_sales_seasonality(agg)
 
     def calculate_price_elasticity(self) -> PriceElasticityResult:
         """Calculates price elasticity of demand."""
         logger.info("Executing use case: calculate_price_elasticity")
-        records = self._sales_data_port.get_all_sales()
-        return self._advanced_metrics.calculate_price_elasticity(records)
+        agg = self._sales_data_port.aggregate_price_elasticity()
+        return self._advanced_metrics.calculate_price_elasticity(agg)
 
     def execute_custom_query(self, query: str) -> List[Dict[str, Any]]:
         """Executes a secured ad-hoc SQL query for fallback analytical requests."""

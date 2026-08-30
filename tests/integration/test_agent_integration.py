@@ -239,9 +239,10 @@ def test_e2e_sql_fallback_security_rejection(real_full_stack_components):
     assert "rejeitada" in response.lower() or "segurança" in response.lower()
     
     # Assert data was NOT deleted in DuckDB
-    records = real_full_stack_components["persistence"].get_all_sales()
+    records = real_full_stack_components["persistence"].get_sales_by_filter()
     assert len(records) == 5
     assert any(r.product_id == "Prod_A" for r in records)
+
 
 
 def test_e2e_bootstrap_agent_flow(integration_sales_csv, monkeypatch):
