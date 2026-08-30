@@ -22,12 +22,13 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 5. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
 6. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
 7. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), e sanitização contra injeção de HTML/JS no frontend (`DOMPurify`).
+8. **Escalabilidade Distribuída & Sessão Stateless (Redis + K3s):** Camada de computação 100% desacoplada de estado conversacional através da porta de saída `SessionStorePort` e `SessionFactory`, permitindo escalabilidade horizontal em Kubernetes/K3s com multi-réplicas sem perda de histórico conversacional entre pods ou durante rolling updates.
 
 ---
 
 ## 🏛️ Arquitetura do Sistema
 
-O projeto adota o padrão **Hexagonal (Ports & Adapters)** com **Pushdown Analítico OLAP** para garantir testabilidade máxima, desacoplamento e escalabilidade enterprise:
+O projeto adota o padrão **Hexagonal (Ports & Adapters)** com **Pushdown Analítico OLAP** e **Sessão Distribuída Stateless** para garantir testabilidade máxima, desacoplamento e escalabilidade enterprise:
 
 ```mermaid
 graph TB
@@ -45,32 +46,39 @@ graph TB
         WebChatPort[WebChatUseCase Port]
     end
 
-    subgraph Application Core [Aplicação]
+    subgraph Application Core [Aplicação Stateless]
         AppService[SalesMetricsApplicationService]
         WebChatAppService[WebChatApplicationService]
     end
 
     subgraph Outbound Ports [Ports - Saída]
         DataPort[SalesDataPort Port: Pushdown Aggregations]
+        SessionPort[SessionStorePort: Distributed Chat History]
     end
 
     subgraph Outbound Adapters [Adapters - Saída]
         DuckDBAdapter[DuckDbSalesAdapter - In-Memory OLAP Vectorized Engine]
         LLMFactory[LLMFactory - LangChain Provider]
-        SessionMemory[InMemorySessionHistoryAdapter]
+        SessionFactory[SessionFactory - 12-Factor Provider Resolver]
+        RedisAdapter[RedisSessionAdapter - Distributed Redis Cluster]
+        MemoryAdapter[SessionMemoryAdapter - Thread-Safe LRU Cache]
     end
 
     subgraph Domain Core [Domínio Puro]
         Models[Domain Models: SaleRecord, MetricResult, Aggregations, SessionContext]
         BasicMetrics[BasicMetricsService]
         AdvancedMetrics[AdvancedMetricsService]
+        SessionExceptions[Domain Exceptions: InvalidSessionIdError, SessionDomainError]
     end
 
     WebClient -->|POST /chat| FastAPI
     FastAPI --> WebChatPort
     WebChatPort --> WebChatAppService
     WebChatAppService --> Agent
-    WebChatAppService --> SessionMemory
+    WebChatAppService --> SessionPort
+    SessionPort --> SessionFactory
+    SessionFactory -->|SESSION_STORE=redis| RedisAdapter
+    SessionFactory -->|SESSION_STORE=memory| MemoryAdapter
     CLI --> Agent
     Agent --> DomainTools
     Agent --> FallbackTool
@@ -85,6 +93,39 @@ graph TB
     BasicMetrics --> Models
     AdvancedMetrics --> Models
     Agent --> LLMFactory
+```
+
+### 🔄 Fluxo de Sessão Distribuída Multi-Pod (Stateless Execution)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Cliente (Navegador/App)
+    participant K8sLB as K3s Service / Load Balancer
+    participant PodA as Pod Replica A
+    participant PodB as Pod Replica B
+    participant Redis as Redis Session Store (redis-service:6379)
+    participant LLM as Provedor LLM (OpenAI/Anthropic/Gemini)
+
+    Note over Client,Redis: Turno 1 da Conversa
+    Client->>K8sLB: POST /chat (session_id="sess-101", query="Qual o produto mais vendido?")
+    K8sLB->>PodA: Roteia requisição para Pod A
+    PodA->>Redis: GET sales_agent:session:sess-101
+    Redis-->>PodA: Retorna [] (sessão nova)
+    PodA->>LLM: Executa reasoning com DuckDB Tools
+    LLM-->>PodA: Resposta: "O produto mais vendido é o P1..."
+    PodA->>Redis: SET sales_agent:session:sess-101 (Mensagens + TTL 86400s)
+    PodA-->>Client: HTTP 200 OK (Resposta do Turno 1)
+
+    Note over Client,Redis: Turno 2 da Conversa (Roteado para outra réplica)
+    Client->>K8sLB: POST /chat (session_id="sess-101", query="E qual foi a receita dele?")
+    K8sLB->>PodB: Roteia requisição para Pod B (Round-Robin)
+    PodB->>Redis: GET sales_agent:session:sess-101
+    Redis-->>PodB: Retorna histórico completo do Turno 1
+    PodB->>LLM: Injeta chat_history no reasoning loop
+    LLM-->>PodB: Resposta: "A receita do produto P1 foi R$ 50.000,00..."
+    PodB->>Redis: SET sales_agent:session:sess-101 (4 mensagens acumuladas + TTL renovado)
+    PodB-->>Client: HTTP 200 OK (Resposta contextual do Turno 2)
 ```
 
 ---
@@ -114,21 +155,29 @@ challenge_ai_engineer/
 ├── dataset/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001, R002, R003)
-│   ├── architecture/              # Especificações técnicas e checklists (T001, T002, T003)
+│   ├── api/                       # Contratos de API REST (web-chat.md)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001, R002, R003, R004)
+│   ├── architecture/              # Especificações técnicas e checklists (T001, T002, T003, T004)
 │   ├── security/                  # Auditorias de AppSec e relatórios (S001, S002, S003, S004)
 │   ├── tests/                     # Especificações de cobertura de testes (TEST001, TEST002, TEST003, TEST004)
 │   └── quality/                   # Relatórios de validação de qualidade (Q001, Q002, Q003, Q004)
+├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Stateless Architecture)
+│   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
+│   ├── app-service.yaml           # ClusterIP Service com balanceamento de carga para a API
+│   ├── configmap.yaml             # ConfigMap de ambiente (SESSION_STORE, REDIS_URL, TTL)
+│   ├── redis-deployment.yaml      # Deployment do Redis backing service
+│   └── redis-service.yaml         # ClusterIP Service interno para o Redis (porta 6379)
 ├── src/
 │   ├── domain/                    # DOMÍNIO PURO (Zero frameworks)
+│   │   ├── exception/             # SessionDomainError, InvalidSessionIdError, SessionStorageError
 │   │   ├── model/                 # SaleRecord, MetricResult, AggregationModels, SessionContext
 │   │   └── service/               # BasicMetricsService, AdvancedMetricsService
 │   ├── application/               # CASOS DE USO E CONTRATOS
 │   │   ├── dto/                   # ChatRequestDTO, ChatResponseDTO
 │   │   ├── port/
 │   │   │   ├── inbound/           # SalesAnalysisUseCase, WebChatUseCase
-│   │   │   └── outbound/          # SalesDataPort (Pushdown OLAP Contracts)
-│   │   └── service/               # SalesMetricsApplicationService, WebChatApplicationService
+│   │   │   └── outbound/          # SalesDataPort (Pushdown OLAP), SessionStorePort (Sessão Distribuída)
+│   │   └── service/               # SalesMetricsApplicationService, WebChatApplicationService (Stateless)
 │   └── adapter/                   # ADAPTERS (Tecnologias externas)
 │       ├── inbound/
 │       │   ├── cli/               # main.py (Interface terminal)
@@ -136,17 +185,18 @@ challenge_ai_engineer/
 │       │   └── llm/               # sales_agent.py, domain_tools.py, sql_fallback_tool.py
 │       └── outbound/
 │           ├── llm/               # llm_factory.py (OpenAI / Anthropic / Gemini)
-│           ├── memory/            # session_memory_adapter.py (LRU Cache)
+│           ├── memory/            # session_memory_adapter.py (Thread-safe LRU Cache)
+│           ├── redis/             # redis_session_adapter.py (Cluster Redis com TTL)
+│           ├── session_factory.py # 12-Factor Provider Resolver (memory vs redis)
 │           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP)
 ├── tests/
 │   ├── unit/                      # Testes unitários de domínio, portas e adapters (100% isolamento)
-│   └── integration/               # Testes de integração End-to-End e paridade analítica
+│   └── integration/               # Testes de integração End-to-End, paridade analítica e multi-pod
 ├── .env.example                   # Modelo de variáveis de ambiente
 ├── Dockerfile                     # Empacotamento Docker da aplicação
 ├── pyproject.toml                 # Configurações do Pytest e Linters
-└── requirements.txt               # Dependências do projeto
+└── requirements.txt               # Dependências do projeto (incluindo redis>=5.0.0)
 ```
-
 
 ---
 
@@ -156,6 +206,7 @@ challenge_ai_engineer/
 
 - Python 3.10+ instalado
 - Chave de API de um provedor de IA (OpenAI, Anthropic ou Google Gemini)
+- *(Opcional para modo distribuído)* Redis 7+ ou cluster Kubernetes/K3s
 
 ### Clonar o Repositório
 
@@ -172,10 +223,10 @@ Copie o arquivo de exemplo e defina suas credenciais:
 cp .env.example .env
 ```
 
-Edite o `.env` conforme o provedor desejado:
+Edite o `.env` conforme o provedor e modo de sessão desejado:
 
 ```env
-# Exemplo com OpenAI
+# Provedor de IA (Exemplo com OpenAI)
 LLM_PROVIDER=openai
 MODEL_NAME=gpt-4o-mini
 OPENAI_API_KEY=sk-...
@@ -192,6 +243,13 @@ OPENAI_API_KEY=sk-...
 
 DATASET_PATH=dataset/sales.csv
 LOG_LEVEL=INFO
+
+# Persistência de Sessão Conversacional (Stateless Architecture)
+# 'memory': Armazenamento local com cache LRU (ideal para dev local)
+# 'redis': Armazenamento centralizado distribuído (produção / multi-pod)
+SESSION_STORE=memory
+REDIS_URL=redis://localhost:6379/0
+SESSION_TTL_SECONDS=86400
 ```
 
 ---
@@ -305,6 +363,46 @@ docker tag sales-agent:latest juliosilvacwb/sales-agent:latest
 # 3. Publicar a imagem no Docker Hub
 docker push juliosilvacwb/sales-agent:latest
 ```
+
+---
+
+## ☸️ Orquestração Kubernetes / K3s (Alta Disponibilidade & Stateless)
+
+O projeto inclui manifestos declarativos prontos para produção na pasta `k8s/`, implantando uma topologia em cluster com:
+
+- **Redis Backing Service:** Deployment com probes de liveness (TCP 6379) e readiness (`redis-cli ping`), além de um `ClusterIP` Service interno (`redis-service:6379`).
+- **Sales Agent Web API Multi-Réplica:** Deployment configurado com `replicas: 2`, injeção de configuração via `ConfigMap`, segredos via `SecretKeyRef`, probes HTTP (`/`), e limites rigorosos de recursos (CPU e Memória).
+- **Load Balancer Service:** ClusterIP Service (`sales-agent-service:8000`) balanceando as requisições de forma intercambiável entre os pods da aplicação.
+
+### 1. Criar o Secret com a Chave de API
+
+```bash
+kubectl create secret generic sales-agent-secrets \
+  --from-literal=openai-api-key="sk-proj-sua-chave-api-aqui"
+```
+
+### 2. Aplicar os Manifestos K3s
+
+```bash
+# Aplica todos os recursos (ConfigMap, Redis Deployment/Service, App Deployment/Service)
+kubectl apply -f k8s/
+```
+
+### 3. Verificar o Status dos Pods e Serviços
+
+```bash
+kubectl get pods -l app=sales-agent
+kubectl get pods -l app=redis
+kubectl get svc
+```
+
+### 4. Acessar a Aplicação no Cluster (Port-Forward Local)
+
+```bash
+kubectl port-forward svc/sales-agent-service 8000:8000
+```
+
+> Abra o navegador em `http://localhost:8000/` para interagir com a interface web balanceada entre as réplicas.
 
 ---
 

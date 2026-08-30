@@ -56,3 +56,24 @@ def test_memory_adapter_lru_eviction():
     assert adapter.exists("s1") is True
     assert adapter.exists("s3") is True
     assert adapter.exists("s2") is False
+
+
+def test_memory_adapter_session_isolation():
+    """Verify distinct sessions remain isolated in memory."""
+    adapter = SessionMemoryAdapter()
+    h1 = adapter.get_history("sessA")
+    h2 = adapter.get_history("sessB")
+
+    h1.add_user_message("Message A")
+    adapter.save_history("sessA", h1)
+
+    assert len(adapter.get_history("sessA").messages) == 1
+    assert len(adapter.get_history("sessB").messages) == 0
+
+
+def test_memory_adapter_backward_compatibility_alias():
+    """Verify get_session_history alias works identically to get_history."""
+    adapter = SessionMemoryAdapter()
+    h = adapter.get_session_history("sess_alias")
+    assert h is not None
+    assert len(h.messages) == 0

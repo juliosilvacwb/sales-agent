@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-30
+
+### Added
+
+- **Escalabilidade de Sessão Distribuída (T004):** Transição da camada de computação do Sales Agent para uma arquitetura completamente stateless baseada em 12-Factor App, desacoplando a persistência do histórico conversacional para o Redis.
+- **Porta de Saída `SessionStorePort`:** Definição do contrato de persistência desacoplada em `src/application/port/outbound/session_store_port.py` com suporte a `get_history`, `save_history`, `clear_history` e `exists`.
+- **Adaptador de Persistência `RedisSessionAdapter`:** Implementação em `src/adapter/outbound/redis/redis_session_adapter.py` com serialização/desserialização JSON de mensagens LangChain (`messages_to_dict` / `messages_from_dict`), renovação automática de TTL a cada interação (`SESSION_TTL_SECONDS`), e timeouts defensivos de socket (3s).
+- **Provedor Plugável `SessionFactory`:** Fábrica centralizada em `src/adapter/outbound/session_factory.py` que resolve dinamicamente entre `RedisSessionAdapter` (`SESSION_STORE=redis`) e `SessionMemoryAdapter` (`SESSION_STORE=memory` / fallback padrão).
+- **Modelos e Exceções de Domínio de Sessão:** Entidade imutável `SessionContext` com validação de identificador por regex (`^[a-zA-Z0-9_-]+$`, max 128 chars), prefixo namespaced isolado (`sales_agent:session:<session_id>`), e exceções de domínio em `src/domain/exception/session_exceptions.py` (`SessionDomainError`, `InvalidSessionIdError`, `SessionStorageError`, `SessionConnectionError`).
+- **Manifestos Declarativos K3s/Kubernetes:** Criação da pasta `k8s/` contendo `redis-deployment.yaml`, `redis-service.yaml`, `app-deployment.yaml` (multi-réplica, probes de liveness/readiness, resource limits), `app-service.yaml` e `configmap.yaml`.
+- **Suíte de Testes de Integração Multi-Réplica:** Criação de `tests/integration/test_distributed_session_integration.py` validando continuidade de contexto conversacional e paridade em múltiplos turnos entre réplicas independentes (Pod A e Pod B) compartilhando o Redis Store.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R004-distributed-session-scalability.md`, `T004-distributed-session-scalability.md`, `TEST004-distributed-session-scalability.md`, `S004-distributed-session-scalability.md` e `Q004-distributed-session-scalability.md`.
+
+### Changed
+
+- **Stateless Web Chat Application Service:** `WebChatApplicationService` refatorado para eliminar o armazenamento em heap `_active_sessions`, injetando dinamicamente o histórico a partir do `SessionStorePort` por requisição e persistindo o turno atualizado.
+- **Injeção de Dependências no `chat_controller`:** Atualização do provider singleton para instanciar o serviço com o `SessionStorePort` resolvido via `SessionFactory`.
+- **Dependências do Projeto (`requirements.txt`):** Adicionado pacote oficial `redis>=5.0.0`.
+
+### Security & Reliability
+
+- **Prevenção de Injeção de Chaves (OWASP A03):** Validação estrita do `session_id` e namespacing de chaves impedem poluição de cache ou colisão acidental entre instâncias de aplicação.
+- **Proteção contra Esgotamento de Memória (OWASP API4):** Expiração automática por TTL configurável (padrão 86.400s / 24h) no Redis e capacidade limitada com política LRU (500 sessões) no adaptador em memória.
+- **Sanitização de Erros e Prevenção de Vazamento (OWASP A05):** Mascaramento de erros de conexão e timeouts internos em mensagens neutras para o usuário final, com rastreabilidade estruturada nos logs do servidor.
+- **Hardening de Infraestrutura:** Serviço Redis operando estritamente em rede interna ClusterIP, credenciais sensíveis gerenciadas via Kubernetes Secrets (`SecretKeyRef`), e limites de CPU/RAM declarados contra DoS.
+
 ## [1.2.0] - 2026-08-30
 
 ### Added

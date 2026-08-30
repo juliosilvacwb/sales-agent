@@ -3,6 +3,8 @@
 ## PRD Reference
 
 - **PRD:** [R004-distributed-session-scalability.md](../business-requirements/R004-distributed-session-scalability.md)
+- **Test Coverage:** [TEST004-distributed-session-scalability.md](../tests/TEST004-distributed-session-scalability.md)
+- **Security Audit:** [S004-distributed-session-scalability.md](../security/S004-distributed-session-scalability.md)
 
 ## Technical Goal
 
@@ -25,23 +27,23 @@ Transition the Sales Data Analysis Agent compute tier into a completely stateles
 
 ### 🔵 Phase 1 — Domain Core
 
-- [x] Task 001 - [Domain-Model]: Enhance `SessionContext` and create session domain entities and value objects (Depends On: —)
-- [x] Task 002 - [Domain-Exception]: Create domain-specific session exceptions (`SessionStorageError`, `InvalidSessionIdError`) (Depends On: —)
+- [COMPLETED] Task 001 - [Domain-Model]: Enhance `SessionContext` and create session domain entities and value objects (Depends On: —)
+- [COMPLETED] Task 002 - [Domain-Exception]: Create domain-specific session exceptions (`SessionStorageError`, `InvalidSessionIdError`) (Depends On: —)
 
 ### 🟡 Phase 2 — Ports & Use Cases
 
-- [x] Task 003 - [Port-Out]: Define `SessionStorePort` output port interface for chat history persistence (Depends On: Task 001, Task 002)
-- [x] Task 004 - [UseCase]: Refactor `WebChatApplicationService` to be completely stateless using `SessionStorePort` (Depends On: Task 003)
+- [COMPLETED] Task 003 - [Port-Out]: Define `SessionStorePort` output port interface for chat history persistence (Depends On: Task 001, Task 002)
+- [COMPLETED] Task 004 - [UseCase]: Refactor `WebChatApplicationService` to be completely stateless using `SessionStorePort` (Depends On: Task 003)
 
 ### 🟢 Phase 3 — Adapters
 
-- [x] Task 005 - [Adapter-Persistence]: Refactor `SessionMemoryAdapter` to implement `SessionStorePort` (Depends On: Task 003)
-- [x] Task 006 - [Adapter-Persistence]: Implement `RedisSessionAdapter` with connection pooling and TTL management (Depends On: Task 003)
-- [x] Task 007 - [Adapter-Infra]: Implement `SessionFactory` / Provider Resolver based on `SESSION_STORE` environment variable (Depends On: Task 005, Task 006)
-- [x] Task 008 - [Adapter-Web]: Update `chat_controller` and dependency injection to wire stateless use case with session factory (Depends On: Task 004, Task 007)
-- [x] Task 009 - [Adapter-Infra]: Update `requirements.txt` with `redis>=5.0.0` dependency (Depends On: —)
-- [x] Task 010 - [Adapter-Infra]: Create production-ready K3s declarative manifests in `k8s/` (Depends On: Task 008)
-- [x] Task 011 - [Test-Integration]: Implement integration and multi-replica simulation tests verifying distributed session continuity (Depends On: Task 007, Task 008)
+- [COMPLETED] Task 005 - [Adapter-Persistence]: Refactor `SessionMemoryAdapter` to implement `SessionStorePort` (Depends On: Task 003)
+- [COMPLETED] Task 006 - [Adapter-Persistence]: Implement `RedisSessionAdapter` with connection pooling and TTL management (Depends On: Task 003)
+- [COMPLETED] Task 007 - [Adapter-Infra]: Implement `SessionFactory` / Provider Resolver based on `SESSION_STORE` environment variable (Depends On: Task 005, Task 006)
+- [COMPLETED] Task 008 - [Adapter-Web]: Update `chat_controller` and dependency injection to wire stateless use case with session factory (Depends On: Task 004, Task 007)
+- [COMPLETED] Task 009 - [Adapter-Infra]: Update `requirements.txt` with `redis>=5.0.0` dependency (Depends On: —)
+- [COMPLETED] Task 010 - [Adapter-Infra]: Create production-ready K3s declarative manifests in `k8s/` (Depends On: Task 008)
+- [COMPLETED] Task 011 - [Test-Integration]: Implement integration and multi-replica simulation tests verifying distributed session continuity (Depends On: Task 007, Task 008)
 
 ## Task Detailing (Summary Tasks)
 

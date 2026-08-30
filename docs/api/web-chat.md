@@ -82,3 +82,13 @@ Processa a mensagem em linguagem natural enviada pelo usuário, mantém o contex
 
 - **CORS:** Controlado via variável de ambiente `ALLOWED_ORIGINS`.
 - **Cabeçalhos de Segurança:** As respostas incluem `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: strict-origin-when-cross-origin`.
+
+---
+
+## Gerenciamento de Sessão Distribuída (Stateless Architecture)
+
+A persistência do histórico conversacional é desacoplada da camada de computação através da porta `SessionStorePort`, suportando dois provedores configuráveis via ambiente:
+
+1. **Redis Distribuído (`SESSION_STORE=redis`):** Armazena as mensagens em um cluster Redis centralizado com namespacing (`sales_agent:session:<session_id>`) e renovação automática de TTL a cada interação (`SESSION_TTL_SECONDS=86400`). Permite escalabilidade horizontal multi-pod com 100% de paridade conversacional entre réplicas.
+2. **Memória Local (`SESSION_STORE=memory`):** Fallback thread-safe com descarte LRU (capacidade padrão de 500 sessões) para desenvolvimento local offline e testes unitários.
+

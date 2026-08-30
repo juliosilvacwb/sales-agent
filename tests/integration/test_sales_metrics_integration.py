@@ -145,7 +145,7 @@ def test_integration_calculate_average_discount(sales_application_service):
     result = sales_application_service.calculate_average_discount()
     assert result.total_planned_revenue == 65000.0
     assert result.total_actual_revenue == 55800.0
-    assert result.total_discount_value == 9200.0
+    assert result.total_discount_value == 6200.0
     assert round(result.overall_average_discount_percentage, 2) == 13.33
     assert "Promo_Winter" in result.discount_by_promotion
     assert "Promo_Flash" in result.discount_by_promotion

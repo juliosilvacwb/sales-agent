@@ -14,18 +14,16 @@ def mock_sales_agent(mocker):
         def initialize(self):
             pass
             
-        def ask(self, question: str) -> str:
-            self.memory_store.append(question)
+        def ask(self, question: str, chat_history=None) -> str:
+            history_contents = [msg.content for msg in chat_history] if chat_history else []
+            self.memory_store = history_contents + [question]
             return f"Answer based on: {', '.join(self.memory_store)}"
             
-    from collections import OrderedDict
     from src.adapter.inbound.web.chat_controller import get_web_chat_use_case_singleton
     from src.application.service.web_chat_application_service import WebChatApplicationService
     use_case = get_web_chat_use_case_singleton()
     assert isinstance(use_case, WebChatApplicationService)
     use_case._agent_factory = lambda: FakeAgent()
-    # Clear active sessions to ensure a fresh FakeAgent is used
-    use_case._active_sessions = OrderedDict()
     return use_case
 
 def test_web_chat_flow(mock_sales_agent):
@@ -74,13 +72,11 @@ def test_web_chat_integration_error_response():
         def ask(self, question: str) -> str:
             raise RuntimeError("Agent operational failure")
 
-    from collections import OrderedDict
     from src.adapter.inbound.web.chat_controller import get_web_chat_use_case_singleton
     from src.application.service.web_chat_application_service import WebChatApplicationService
     use_case = get_web_chat_use_case_singleton()
     assert isinstance(use_case, WebChatApplicationService)
     use_case._agent_factory = lambda: FailingAgent()
-    use_case._active_sessions = OrderedDict()
 
     client = TestClient(app)
     response = client.post(

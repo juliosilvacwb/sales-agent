@@ -88,7 +88,7 @@ def test_process_chat_message_invalid_session_id():
     mock_factory = MagicMock()
     service = WebChatApplicationService(agent_factory=mock_factory)
     
-    request = ChatRequestDTO(message="hello", session_id="session; DROP TABLE sales;--")
+    request = ChatRequestDTO.model_construct(message="hello", session_id="session; DROP TABLE sales;--")
     response = service.process_chat_message(request)
     
     assert response.status == "error"

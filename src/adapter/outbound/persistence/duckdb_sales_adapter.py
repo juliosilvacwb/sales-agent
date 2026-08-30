@@ -284,7 +284,7 @@ class DuckDbSalesAdapter(SalesDataPort):
         SELECT
             COALESCE(SUM(planned_quantity * planned_price), 0.0) AS total_planned_revenue,
             COALESCE(SUM(actual_quantity * actual_price), 0.0) AS total_actual_revenue,
-            COALESCE(SUM(CASE WHEN planned_price > actual_price THEN GREATEST(0.0, (planned_quantity * planned_price) - (actual_quantity * actual_price)) ELSE 0.0 END), 0.0) AS total_discount_value,
+            COALESCE(SUM(CASE WHEN planned_price > actual_price THEN actual_quantity * (planned_price - actual_price) ELSE 0.0 END), 0.0) AS total_discount_value,
             COALESCE(AVG((planned_price - actual_price) / planned_price) FILTER (WHERE planned_price > 0 AND actual_price < planned_price) * 100.0, 0.0) AS overall_avg_discount,
             COUNT(*) AS total_records
         FROM sales_data

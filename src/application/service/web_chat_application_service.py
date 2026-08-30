@@ -39,8 +39,9 @@ class WebChatApplicationService(WebChatUseCase):
 
             if self._session_store is not None:
                 history = self._session_store.get_history(request.session_id)
+                prior_messages = list(history.messages)
                 try:
-                    answer = agent.ask(request.message, chat_history=history.messages)
+                    answer = agent.ask(request.message, chat_history=prior_messages)
                 except TypeError:
                     answer = agent.ask(request.message)
 
