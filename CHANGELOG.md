@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-30
+
+### Added
+
+- **Validação SQL Robusta via AST Parsing (T005 / R005):** Substituição completa do validador baseado em Regex pelo analisador de Árvore de Sintaxe Abstrata (AST) determinístico com `sqlglot` configurado para o dialeto DuckDB.
+- **Modelos e Enums de Domínio (`src/domain/model/sql_validation.py`):** Criação do enum `SqlViolationType` e dos value objects imutáveis `SqlValidationResult` e `ParsedSqlStatement` (`frozen=True`).
+- **Hierarquia de Exceções de Domínio (`src/domain/exception/sql_validation_exceptions.py`):** Exceções tipadas `SqlValidationError`, `SqlSyntaxError` e `SqlSecurityViolationError` para transporte de metadados de violação estruturada.
+- **Serviço de Domínio de Segurança (`src/domain/service/sql_security_validator.py`):** Serviço puro `SqlSecurityValidator` com regras determinísticas para validação de nós raiz (`SELECT`, `WITH`, `UNION`), bloqueio recursivo de 15 operações mutacionais e 10 funções de acesso a arquivos.
+- **Porta de Saída `SqlParserPort` (`src/application/port/outbound/sql_parser_port.py`):** Interface abstrata desacoplando a camada de aplicação/domínio do motor de parsing de infraestrutura.
+- **Adaptador de Parsing `SqlGlotParserAdapter` (`src/adapter/outbound/parser/sqlglot_parser_adapter.py`):** Implementação concreta de `SqlParserPort` utilizando `sqlglot` com suporte a DuckDB, extração recursiva de funções e isolamento estrito de literais.
+- **Suíte de Testes Automatizados de Validação AST:** Novos testes em `tests/unit/test_sql_security_validator.py`, `tests/unit/test_sqlglot_parser_adapter.py` e `tests/integration/test_ast_sql_validation_e2e.py` validando SLA de latência (< 5ms), eliminação de falsos positivos e bloqueio de DDL/DML.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R005-ast-sql-validation.md`, `T005-ast-sql-validation.md`, `TEST005-ast-sql-validation.md`, `S005-ast-sql-validation.md` e `Q005-ast-sql-validation.md`.
+
+### Changed
+
+- **Refatoração de `SecuredSQLQueryTool` (`src/adapter/inbound/llm/sql_fallback_tool.py`):** Removidos regexes e heurísticas textuais; a ferramenta agora delega a análise estrutural para o `SqlParserPort` e as regras de segurança para o `SqlSecurityValidator` via injeção de dependência.
+- **Fábrica `create_sql_fallback_tool`:** Atualizada para instanciar e injetar automaticamente o `SqlGlotParserAdapter` e o `SqlSecurityValidator`.
+- **Dependências do Projeto (`requirements.txt`):** Adicionada a biblioteca `sqlglot>=26.0.0`.
+
+### Security & Reliability
+
+- **Eliminação de Falsos Positivos em Literais (AC02 / BR02):** Consultas contendo palavras-chave reservadas dentro de constantes de texto (ex: `WHERE product_id = 'DROP_01'`) executam com segurança sem serem rejeitadas indevidamente.
+- **Defesa em Profundidade contra SQLi e Prompt Injection (OWASP LLM01 / A03):** Bloqueio garantido de operações mutacionais (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, etc.) em qualquer profundidade da árvore sintática (subselects, CTEs e UNIONs).
+- **Proteção contra Stacked Queries e Acesso a Arquivos:** Bloqueio de declarações encadeadas (`statement_count > 1`) e de funções de leitura/escrita no disco do host (`read_csv`, `read_text`, `read_blob`, `read_parquet`, `read_json`, `glob`).
+- **Sanitização de Respostas e Observabilidade:** Redação de paths internos do servidor (`[REDACTED_PATH]`), orientação amigável de autocorreção em erros de sintaxe e preservação do log `[MISSING_TOOL]`.
+
 ## [1.3.0] - 2026-08-30
 
 ### Added

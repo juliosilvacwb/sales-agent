@@ -8,47 +8,12 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
 from src.application.port.inbound.sales_analysis_usecase import SalesAnalysisUseCase
+from src.application.port.outbound.sql_parser_port import SqlParserPort
+from src.domain.service.sql_security_validator import SqlSecurityValidator
+from src.domain.exception.sql_validation_exceptions import SqlSyntaxError
+from src.adapter.outbound.parser.sqlglot_parser_adapter import SqlGlotParserAdapter
 
 logger = logging.getLogger(__name__)
-
-# Disallowed keywords regex with word boundary check
-FORBIDDEN_KEYWORDS = [
-    "DROP",
-    "DELETE",
-    "UPDATE",
-    "INSERT",
-    "ATTACH",
-    "DETACH",
-    "COPY",
-    "ALTER",
-    "CREATE",
-    "REPLACE",
-    "TRUNCATE",
-    "PRAGMA",
-    "EXEC",
-    "EXECUTE",
-    "CALL",
-    "GRANT",
-    "REVOKE",
-    "VACUUM",
-    "EXPORT",
-    "IMPORT",
-    "READ_CSV",
-    "READ_TEXT",
-    "READ_BLOB",
-    "READ_PARQUET",
-    "READ_JSON",
-    "GLOB",
-    "INSTALL",
-    "LOAD",
-    "SYSTEM",
-    "WRITE_PARQUET",
-    "WRITE_CSV",
-]
-
-FORBIDDEN_PATTERN = re.compile(
-    r"\b(" + "|".join(FORBIDDEN_KEYWORDS) + r")\b", re.IGNORECASE
-)
 
 
 class SQLQueryInput(BaseModel):
@@ -88,10 +53,20 @@ class SecuredSQLQueryTool(BaseTool):
     )
     args_schema: Optional[Type[BaseModel]] = SQLQueryInput  # type: ignore
     use_case: Any = None
+    sql_parser_port: Any = None
+    validator: Any = None
 
-    def __init__(self, use_case: SalesAnalysisUseCase, **kwargs: Any) -> None:
+    def __init__(
+        self, 
+        use_case: SalesAnalysisUseCase, 
+        sql_parser_port: SqlParserPort,
+        validator: SqlSecurityValidator,
+        **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self.use_case = use_case
+        self.sql_parser_port = sql_parser_port
+        self.validator = validator
 
     def _run(self, query: str) -> str:
         """Validates query security, emits [MISSING_TOOL] log, and executes on DuckDB."""
@@ -100,29 +75,40 @@ class SecuredSQLQueryTool(BaseTool):
         # Log observability marker with original query
         logger.warning("[MISSING_TOOL] SQL Fallback Tool triggered for query: %s", cleaned_query)
 
-        # 1. Security Check: Forbidden Keywords
-        match = FORBIDDEN_PATTERN.search(cleaned_query)
-        if match:
-            forbidden_word = match.group(0).upper()
-            logger.error("Security violation: query contains forbidden keyword '%s'", forbidden_word)
+        try:
+            parsed_statement = self.sql_parser_port.parse(cleaned_query)
+        except SqlSyntaxError as e:
+            logger.error("SQL Syntax Error: %s", e)
             return (
-                f"Erro de Segurança: A instrução '{forbidden_word}' é proibida. "
-                "Apenas consultas analíticas de leitura (SELECT) são permitidas."
+                f"Erro de Sintaxe: Não foi possível analisar a consulta SQL. "
+                f"Detalhe: {e.detail}. Por favor, corrija a sintaxe e tente novamente."
             )
+        except Exception as e:
+            logger.error("Unexpected error during parsing: %s", e)
+            raw_err = str(e)
+            sanitized_err = re.sub(r"([a-zA-Z]:[\\/][^\s:'\"]+|/[^\s:'\"]+|[A-Z]:\\[^\s:'\"]+)", "[REDACTED_PATH]", raw_err)
+            return f"Erro ao executar a consulta SQL: {sanitized_err}"
 
-        # 2. Security Check: Must start with SELECT or WITH
-        first_word = cleaned_query.split()[0].upper() if cleaned_query.split() else ""
-        if first_word not in ("SELECT", "WITH", "DESCRIBE", "EXPLAIN"):
-            logger.error("Security violation: query does not start with SELECT/WITH. Found: '%s'", first_word)
+        validation_result = self.validator.validate(parsed_statement)
+        if not validation_result.is_valid:
+            logger.error("Security violation: %s - %s", validation_result.violation_type, validation_result.violation_detail)
+            
+            # Match existing error format (PT-BR)
+            offending_info = ""
+            if validation_result.offending_node:
+                offending_info = f"'{validation_result.offending_node}'"
+            elif validation_result.violation_type and validation_result.violation_type.name == "DISALLOWED_ROOT_OPERATION":
+                offending_info = f"'{parsed_statement.root_node_type}'"
+                
+            if offending_info:
+                return (
+                    f"Erro de Segurança: A instrução {offending_info} é proibida. "
+                    "Apenas consultas analíticas de leitura (SELECT/WITH) são permitidas."
+                )
             return (
-                f"Erro de Segurança: Consulta rejeitada. Apenas instruções de leitura iniciando em SELECT ou WITH são permitidas."
-            )
-
-        # 3. Security Check: No internal semicolons allowed (stacked queries protection)
-        if ";" in cleaned_query:
-            logger.error("Security violation: query contains internal semicolons.")
-            return (
-                "Erro de Segurança: Consulta rejeitada. Instruções múltiplas (encadeamento por ';') não são permitidas."
+                f"Erro de Segurança: Consulta rejeitada. "
+                f"Detalhe: {validation_result.violation_detail} "
+                "Apenas consultas analíticas de leitura (SELECT/WITH) são permitidas."
             )
 
         try:
@@ -178,6 +164,19 @@ class SecuredSQLQueryTool(BaseTool):
             return f"Erro ao executar a consulta SQL: {sanitized_err}"
 
 
-def create_sql_fallback_tool(sales_use_case: SalesAnalysisUseCase) -> SecuredSQLQueryTool:
+def create_sql_fallback_tool(
+    sales_use_case: SalesAnalysisUseCase,
+    sql_parser_port: Optional[SqlParserPort] = None,
+    validator: Optional[SqlSecurityValidator] = None
+) -> SecuredSQLQueryTool:
     """Factory helper to instantiate a SecuredSQLQueryTool."""
-    return SecuredSQLQueryTool(use_case=sales_use_case)
+    if sql_parser_port is None:
+        sql_parser_port = SqlGlotParserAdapter()
+    if validator is None:
+        validator = SqlSecurityValidator()
+        
+    return SecuredSQLQueryTool(
+        use_case=sales_use_case,
+        sql_parser_port=sql_parser_port,
+        validator=validator
+    )

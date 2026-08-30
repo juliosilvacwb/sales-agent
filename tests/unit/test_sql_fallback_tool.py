@@ -91,3 +91,50 @@ def test_secured_sql_tool_truncates_large_results():
     assert "100" in result
     assert "50" in result
 
+
+@pytest.mark.parametrize(
+    "safe_query_with_literal",
+    [
+        "SELECT * FROM sales_data WHERE product_id = 'DROP_A'",
+        "SELECT * FROM sales_data WHERE promotion_type = 'UPDATE_DISCOUNT'",
+        "SELECT * FROM sales_data WHERE local = 'DELETE_ZONE'",
+        "SELECT * FROM sales_data WHERE local = 'INSERT_CO'",
+    ]
+)
+def test_secured_sql_tool_false_positive_elimination(mock_sales_usecase, safe_query_with_literal):
+    """Test AC02: Queries containing forbidden keywords inside string literals execute successfully."""
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    result = tool.invoke({"query": safe_query_with_literal})
+    
+    mock_sales_usecase.execute_custom_query.assert_called_once_with(safe_query_with_literal)
+    # Result shouldn't be a security error
+    assert "Erro de Segurança" not in result
+
+
+def test_secured_sql_tool_complex_queries(mock_sales_usecase):
+    """Test AC05: Complex valid queries with CTEs, subqueries, and window functions parse and execute."""
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    query = """
+    WITH stats AS (
+        SELECT local, AVG(actual_quantity) OVER (PARTITION BY product_id) as avg_q
+        FROM sales_data
+    )
+    SELECT * FROM stats WHERE local IN (SELECT local FROM sales_data WHERE actual_price > 100)
+    """
+    result = tool.invoke({"query": query})
+    
+    # Strip whitespace to compare the cleaned query exactly as the tool does
+    mock_sales_usecase.execute_custom_query.assert_called_once_with(query.strip().rstrip(";"))
+    assert "Erro de Segurança" not in result
+
+
+def test_secured_sql_tool_malformed_sql(mock_sales_usecase):
+    """Test AC06: Malformed SQL returns structured self-correction guidance without unhandled exceptions."""
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    # Missing closing parenthesis
+    query = "SELECT * FROM (SELECT local FROM sales_data"
+    result = tool.invoke({"query": query})
+    
+    mock_sales_usecase.execute_custom_query.assert_not_called()
+    assert "Erro de Sintaxe" in result
+    assert "corrija a sintaxe" in result

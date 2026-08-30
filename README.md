@@ -15,13 +15,13 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 
 1. **Abordagem Híbrida Inteligente:**
    - **10 Domain Tools Determinísticas:** Métricas críticas de negócio (ex: produto mais vendido, SLA logístico, impacto de promoções, déficit de receita, elasticidade) utilizam pushdown de agregação SQL no DuckDB e formatação pura de domínio, imunes a alucinações matemáticas de LLMs.
-   - **Secured SQL Fallback Tool:** Perguntas analíticas *ad-hoc* não previstas no catálogo de domínio são roteadas para uma ferramenta de consulta SQL com proteção rigorosa.
+   - **Secured SQL Fallback Tool com AST Parsing (`sqlglot`):** Perguntas analíticas *ad-hoc* não previstas no catálogo de domínio são roteadas para uma ferramenta de consulta SQL com validação gramatical via Árvore de Sintaxe Abstrata (AST), eliminando falsos positivos em literais de texto e bloqueando mutações em qualquer profundidade da árvore sintática.
 2. **Interface Web Premium (FastAPI + Vanilla JS):** Acesso democratizado aos dados de vendas através de um frontend moderno (Dark Mode, layout responsivo) comunicando-se com a API REST de forma assíncrona, eliminando a dependência da CLI.
 3. **DuckDB In-Process (OLAP Pushdown Aggregations):** Mecanismo colunar vetorizado para processamento analítico de sub-segundo em memória. Cálculos matemáticos (`SUM`, `AVG`, `FILTER`, `GROUP BY`) são executados nativamente via SQL no C++ do DuckDB, mantendo consumo de memória O(1) e eliminando riscos de Out-of-Memory (OOM) para datasets com 50M+ registros.
 4. **Arquitetura Hexagonal (Ports & Adapters):** O núcleo de domínio (regras matemáticas e modelos de dados) possui zero acoplamento com LangChain, DuckDB ou bibliotecas web.
 5. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
 6. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
-7. **Segurança Corporativa:** Bloqueio estrito de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.), isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), e sanitização contra injeção de HTML/JS no frontend (`DOMPurify`).
+7. **Segurança Corporativa & AST Guardrails:** Bloqueio determinístico de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.) e funções do sistema de arquivos (`read_csv`, `read_text`, `glob`) via inspeção recursiva de AST com `sqlglot`, isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), sanitização contra injeção de HTML/JS no frontend (`DOMPurify`), e redação de paths internos `[REDACTED_PATH]`.
 8. **Escalabilidade Distribuída & Sessão Stateless (Redis + K3s):** Camada de computação 100% desacoplada de estado conversacional através da porta de saída `SessionStorePort` e `SessionFactory`, permitindo escalabilidade horizontal em Kubernetes/K3s com multi-réplicas sem perda de histórico conversacional entre pods ou durante rolling updates.
 
 ---
@@ -54,6 +54,7 @@ graph TB
     subgraph Outbound Ports [Ports - Saída]
         DataPort[SalesDataPort Port: Pushdown Aggregations]
         SessionPort[SessionStorePort: Distributed Chat History]
+        ParserPort[SqlParserPort: AST SQL Parser]
     end
 
     subgraph Outbound Adapters [Adapters - Saída]
@@ -62,13 +63,17 @@ graph TB
         SessionFactory[SessionFactory - 12-Factor Provider Resolver]
         RedisAdapter[RedisSessionAdapter - Distributed Redis Cluster]
         MemoryAdapter[SessionMemoryAdapter - Thread-Safe LRU Cache]
+        SqlGlotAdapter[SqlGlotParserAdapter - DuckDB Dialect AST Engine]
     end
 
     subgraph Domain Core [Domínio Puro]
         Models[Domain Models: SaleRecord, MetricResult, Aggregations, SessionContext]
+        SqlModels[SQL Validation Models: SqlValidationResult, ParsedSqlStatement, SqlViolationType]
         BasicMetrics[BasicMetricsService]
         AdvancedMetrics[AdvancedMetricsService]
+        SqlValidator[SqlSecurityValidator - Pure Domain Security Rules]
         SessionExceptions[Domain Exceptions: InvalidSessionIdError, SessionDomainError]
+        SqlExceptions[Domain Exceptions: SqlValidationError, SqlSyntaxError, SqlSecurityViolationError]
     end
 
     WebClient -->|POST /chat| FastAPI
@@ -82,8 +87,12 @@ graph TB
     CLI --> Agent
     Agent --> DomainTools
     Agent --> FallbackTool
-    DomainTools --> UseCasePort
+    FallbackTool --> ParserPort
+    ParserPort --> SqlGlotAdapter
+    FallbackTool --> SqlValidator
+    SqlValidator --> SqlModels
     FallbackTool --> UseCasePort
+    DomainTools --> UseCasePort
     UseCasePort --> AppService
     AppService --> DataPort
     DataPort -->|Pushdown SQL: SUM, AVG, GROUP BY| DuckDBAdapter
@@ -144,7 +153,7 @@ sequenceDiagram
 | **Desconto Médio** | `calculate_average_discount` | Avalia a margem de desconto médio aplicado frente ao planejado. |
 | **Sazonalidade de Vendas** | `identify_sales_seasonality` | Aponta meses de pico, vale e curva de sazonalidade temporal. |
 | **Elasticidade de Preço** | `calculate_price_elasticity` | Calcula o coeficiente de elasticidade-preço da demanda. |
-| **Fallback SQL Seguro** | `secured_sql_query` | Executa consultas analíticas `SELECT` ad-hoc com log `[MISSING_TOOL]`. |
+| **Fallback SQL Seguro** | `secured_sql_query` | Executa consultas analíticas `SELECT` ad-hoc com validação AST via `sqlglot` e log `[MISSING_TOOL]`. |
 
 ---
 
@@ -156,11 +165,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (web-chat.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001, R002, R003, R004)
-│   ├── architecture/              # Especificações técnicas e checklists (T001, T002, T003, T004)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001, S002, S003, S004)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001, TEST002, TEST003, TEST004)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001, Q002, Q003, Q004)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R005)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T005)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S005)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST005)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q005)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Stateless Architecture)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service com balanceamento de carga para a API
@@ -169,33 +178,34 @@ challenge_ai_engineer/
 │   └── redis-service.yaml         # ClusterIP Service interno para o Redis (porta 6379)
 ├── src/
 │   ├── domain/                    # DOMÍNIO PURO (Zero frameworks)
-│   │   ├── exception/             # SessionDomainError, InvalidSessionIdError, SessionStorageError
-│   │   ├── model/                 # SaleRecord, MetricResult, AggregationModels, SessionContext
-│   │   └── service/               # BasicMetricsService, AdvancedMetricsService
+│   │   ├── exception/             # SessionDomainError, SqlValidationError, SqlSyntaxError, SqlSecurityViolationError
+│   │   ├── model/                 # SaleRecord, MetricResult, AggregationModels, SessionContext, SqlValidationResult
+│   │   └── service/               # BasicMetricsService, AdvancedMetricsService, SqlSecurityValidator
 │   ├── application/               # CASOS DE USO E CONTRATOS
 │   │   ├── dto/                   # ChatRequestDTO, ChatResponseDTO
 │   │   ├── port/
 │   │   │   ├── inbound/           # SalesAnalysisUseCase, WebChatUseCase
-│   │   │   └── outbound/          # SalesDataPort (Pushdown OLAP), SessionStorePort (Sessão Distribuída)
-│   │   └── service/               # SalesMetricsApplicationService, WebChatApplicationService (Stateless)
+│   │   │   └── outbound/          # SalesDataPort, SessionStorePort, SqlParserPort (AST Parser)
+│   │   └── service/               # SalesMetricsApplicationService, WebChatApplicationService
 │   └── adapter/                   # ADAPTERS (Tecnologias externas)
 │       ├── inbound/
 │       │   ├── cli/               # main.py (Interface terminal)
 │       │   ├── web/               # chat_controller.py, static/ (HTML, CSS, JS)
-│       │   └── llm/               # sales_agent.py, domain_tools.py, sql_fallback_tool.py
+│       │   └── llm/               # sales_agent.py, domain_tools.py, sql_fallback_tool.py (Secured AST Tool)
 │       └── outbound/
 │           ├── llm/               # llm_factory.py (OpenAI / Anthropic / Gemini)
 │           ├── memory/            # session_memory_adapter.py (Thread-safe LRU Cache)
+│           ├── parser/            # sqlglot_parser_adapter.py (DuckDB AST Parser via sqlglot)
 │           ├── redis/             # redis_session_adapter.py (Cluster Redis com TTL)
 │           ├── session_factory.py # 12-Factor Provider Resolver (memory vs redis)
 │           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP)
 ├── tests/
 │   ├── unit/                      # Testes unitários de domínio, portas e adapters (100% isolamento)
-│   └── integration/               # Testes de integração End-to-End, paridade analítica e multi-pod
+│   └── integration/               # Testes de integração End-to-End, AST validation, multi-pod
 ├── .env.example                   # Modelo de variáveis de ambiente
 ├── Dockerfile                     # Empacotamento Docker da aplicação
 ├── pyproject.toml                 # Configurações do Pytest e Linters
-└── requirements.txt               # Dependências do projeto (incluindo redis>=5.0.0)
+└── requirements.txt               # Dependências do projeto (incluindo redis>=5.0.0 e sqlglot>=26.0.0)
 ```
 
 ---
@@ -432,5 +442,7 @@ python -m pytest tests/integration
 
 ## 🔒 Segurança e Observabilidade
 
-- **Prevenção de Injeção SQL:** A ferramenta `secured_sql_query` analisa consultas e bloqueia sumariamente quaisquer instruções que não sejam de leitura (`SELECT` ou CTEs `WITH`). Comandos como `DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY` ou múltiplos statements com `;` são rejeitados antes de atingir o banco.
-- **Auditoria de Consultas Ad-hoc:** O uso do fallback gera logs com `[MISSING_TOOL]`, permitindo que o time de engenharia analise as perguntas mais frequentes não cobertas e evolua o catálogo de Domain Tools com novas regras determinísticas.
+- **Prevenção de Injeção SQL & AST Guardrails:** A ferramenta `secured_sql_query` analisa consultas estruturalmente via Árvore de Sintaxe Abstrata (`sqlglot`) no dialeto DuckDB. Operações DDL/DML (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `CREATE`, `REPLACE`, `TRUNCATE`, `PRAGMA`, `ATTACH`, `DETACH`, `COPY`, `LOAD`, `INSTALL`, `COMMAND`) e funções de leitura do sistema de arquivos (`read_csv`, `read_text`, `read_blob`, `read_parquet`, `read_json`, `glob`) são rejeitadas determinística e recursivamente, mesmo quando aninhadas em subconsultas ou CTEs.
+- **Eliminação de Falsos Positivos:** Termos proibidos que ocorram exclusivamente dentro de constantes literais de texto (ex: `WHERE product_id = 'DROP_01'`) são preservados como nós `Literal`, eliminando os falsos positivos de validações regex tradicionais.
+- **Mitigação de Stacked Queries:** Rejeição automática de consultas encadeadas (`statement_count > 1`) antes de qualquer execução no banco de dados.
+- **Sanitização de Respostas e Observabilidade:** Mascaramento de caminhos absolutos do host em mensagens de erro (`[REDACTED_PATH]`), orientação estruturada de autocorreção em erros de sintaxe (`SqlSyntaxError`), truncamento seguro de grandes volumes (`MAX_RESULTS = 50`) e emissão do log de telemetria `[MISSING_TOOL]` para evolução contínua do catálogo de Domain Tools.

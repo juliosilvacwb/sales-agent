@@ -4,6 +4,9 @@
 
 - **PRD:** [R005-ast-sql-validation.md](../business-requirements/R005-ast-sql-validation.md)
 - **Product Strategy:** [PS005-ast-sql-validation.md](../product-strategy/PS005-ast-sql-validation.md)
+- **Test Coverage:** [TEST005-ast-sql-validation.md](../tests/TEST005-ast-sql-validation.md)
+- **Security Audit:** [S005-ast-sql-validation.md](../security/S005-ast-sql-validation.md)
+- **Quality Report:** [Q005-ast-sql-validation.md](../quality/Q005-ast-sql-validation.md)
 
 ## Technical Goal
 
@@ -141,22 +144,22 @@ against mutational nodes at any nesting depth (Ref: R005, PRD01–PRD07).
 
 #### Leaf nodes (fully parallel — no domain dependencies)
 
-- [ ] Task 001 - [Domain-Enum]: Create `SqlViolationType`
+- [COMPLETED] Task 001 - [Domain-Enum]: Create `SqlViolationType`
   enum (Depends On: —)
-- [ ] Task 002 - [Domain-Exception]: Create
+- [COMPLETED] Task 002 - [Domain-Exception]: Create
   `SqlValidationError` domain exception (Depends On: —)
 
 #### Composite nodes (depend on leaf nodes above)
 
-- [ ] Task 003 - [Domain-Model]: Create
+- [COMPLETED] Task 003 - [Domain-Model]: Create
   `SqlValidationResult` value object
   (Depends On: Task 001)
-- [ ] Task 004 - [Domain-Model]: Create
+- [COMPLETED] Task 004 - [Domain-Model]: Create
   `ParsedSqlStatement` value object (Depends On: —)
 
 #### Domain service (depends on models above)
 
-- [ ] Task 005 - [Domain-Service]: Implement
+- [COMPLETED] Task 005 - [Domain-Service]: Implement
   `SqlSecurityValidator` domain service
   (Depends On: Task 001, Task 002, Task 003, Task 004)
 
@@ -164,29 +167,29 @@ against mutational nodes at any nesting depth (Ref: R005, PRD01–PRD07).
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 006 - [Port-Out]: Define `SqlParserPort`
+- [COMPLETED] Task 006 - [Port-Out]: Define `SqlParserPort`
   output port interface (Depends On: Task 004)
-- [ ] Task 007 - [Config]: Add `sqlglot` to
+- [COMPLETED] Task 007 - [Config]: Add `sqlglot` to
   `requirements.txt` (Depends On: —)
 
 ### 🟢 Phase 3 — Adapters (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 008 - [Adapter-External]: Implement
+- [COMPLETED] Task 008 - [Adapter-External]: Implement
   `SqlGlotParserAdapter`
   (Depends On: Task 006, Task 007)
-- [ ] Task 009 - [Adapter-Web]: Refactor
+- [COMPLETED] Task 009 - [Adapter-Web]: Refactor
   `SecuredSQLQueryTool` to use AST validation
   (Depends On: Task 005, Task 006, Task 008)
-- [ ] Task 010 - [Test-Unit]: Create unit tests for
+- [COMPLETED] Task 010 - [Test-Unit]: Create unit tests for
   `SqlSecurityValidator` (Depends On: Task 005)
-- [ ] Task 011 - [Test-Unit]: Create unit tests for
+- [COMPLETED] Task 011 - [Test-Unit]: Create unit tests for
   `SqlGlotParserAdapter` (Depends On: Task 008)
-- [ ] Task 012 - [Test-Unit]: Update
+- [COMPLETED] Task 012 - [Test-Unit]: Update
   `test_sql_fallback_tool.py` for AST-based validation
   (Depends On: Task 009)
-- [ ] Task 013 - [Test-Integration]: End-to-end
+- [COMPLETED] Task 013 - [Test-Integration]: End-to-end
   integration test for AST validation pipeline
   (Depends On: Task 009, Task 010, Task 011, Task 012)
 
