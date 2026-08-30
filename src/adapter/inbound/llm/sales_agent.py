@@ -70,19 +70,26 @@ class SalesAgent:
             system_prompt=system_prompt,
         )
 
-    def ask(self, question: str) -> str:
-        """Executes the agent on the given question and returns the answer."""
+    def ask(self, question: str, chat_history: Optional[Sequence[BaseMessage]] = None) -> str:
+        """Executes the agent on the given question and returns the answer.
+        
+        Args:
+            question: The user input query.
+            chat_history: Optional external conversational history (e.g. from SessionStorePort).
+        """
         logger.info("Agent received user query: '%s'", question)
-        messages = list(self._chat_history) + [HumanMessage(content=question)]
+        history = list(chat_history) if chat_history is not None else self._chat_history
+        messages = history + [HumanMessage(content=question)]
         result = self._executor.invoke({"messages": messages})
         
         output = str(result["messages"][-1].content)
 
-        # Append messages and apply sliding window to prevent unbounded context growth
-        self._chat_history.append(HumanMessage(content=question))
-        self._chat_history.append(AIMessage(content=output))
-        if len(self._chat_history) > self._max_history_messages:
-            self._chat_history = self._chat_history[-self._max_history_messages:]
+        # Update internal memory only when external history is not provided
+        if chat_history is None:
+            self._chat_history.append(HumanMessage(content=question))
+            self._chat_history.append(AIMessage(content=output))
+            if len(self._chat_history) > self._max_history_messages:
+                self._chat_history = self._chat_history[-self._max_history_messages:]
 
         return output
 

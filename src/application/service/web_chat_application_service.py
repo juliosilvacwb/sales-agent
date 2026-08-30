@@ -1,49 +1,58 @@
 """Application service for Web Chat."""
 import logging
-from collections import OrderedDict
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Optional
 from src.application.port.inbound.web_chat_use_case import WebChatUseCase
+from src.application.port.outbound.session_store_port import SessionStorePort
 from src.application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
+from src.domain.model.session_context import SessionContext
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_ACTIVE_SESSIONS = 500
-
 
 class WebChatApplicationService(WebChatUseCase):
-    """Service that orchestrates the chat agent per session with memory bounding and error sanitization."""
+    """Stateless service that orchestrates chat requests using decoupled session storage."""
     
-    def __init__(self, agent_factory: Callable[[], Any], max_active_sessions: int = DEFAULT_MAX_ACTIVE_SESSIONS):
+    def __init__(
+        self,
+        agent_factory: Callable[[], Any],
+        session_store: Optional[SessionStorePort] = None,
+    ) -> None:
         """
         Args:
-            agent_factory: A callable that returns a new instance of the SalesAgent.
-            max_active_sessions: Maximum number of active session agent instances in memory (LRU eviction).
+            agent_factory: A callable that returns an instance of the SalesAgent.
+            session_store: Output port for persisting and retrieving conversational sessions.
         """
         self._agent_factory = agent_factory
-        self._max_active_sessions = max_active_sessions
-        self._active_sessions: OrderedDict[str, Any] = OrderedDict()
+        self._session_store = session_store
+
+    def set_session_store(self, session_store: SessionStorePort) -> None:
+        """Sets the session store adapter."""
+        self._session_store = session_store
 
     def process_chat_message(self, request: ChatRequestDTO) -> ChatResponseDTO:
-        """Processes the chat message by routing it to the session's agent."""
+        """Processes the chat message in a completely stateless manner per compute node."""
         try:
-            if request.session_id in self._active_sessions:
-                # Mark session as recently used
-                self._active_sessions.move_to_end(request.session_id)
-            else:
-                # Evict oldest session if limit reached
-                if len(self._active_sessions) >= self._max_active_sessions:
-                    evicted_session, _ = self._active_sessions.popitem(last=False)
-                    logger.info("Evicted oldest session from active pool: %s", evicted_session)
-                    
-                self._active_sessions[request.session_id] = self._agent_factory()
-                
-            agent = self._active_sessions[request.session_id]
-            
+            SessionContext.validate_session_id(request.session_id)
             logger.info("Processing chat message for session_id: %s", request.session_id)
-            # Reusing the 'ask' method from SalesAgent
-            answer = agent.ask(request.message)
+
+            agent = self._agent_factory()
+
+            if self._session_store is not None:
+                history = self._session_store.get_history(request.session_id)
+                try:
+                    answer = agent.ask(request.message, chat_history=history.messages)
+                except TypeError:
+                    answer = agent.ask(request.message)
+
+                # Persist turn in external store
+                history.add_user_message(request.message)
+                history.add_ai_message(answer)
+                self._session_store.save_history(request.session_id, history)
+            else:
+                answer = agent.ask(request.message)
+
             return ChatResponseDTO(response=answer, status="success")
-        except Exception as e:
+        except Exception:
             logger.exception("Unexpected error processing chat message for session %s", request.session_id)
             return ChatResponseDTO(
                 response="An unexpected error occurred while processing your request. Please try again later.",

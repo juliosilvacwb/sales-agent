@@ -1,27 +1,27 @@
+"""Web Chat REST Controller."""
 from fastapi import APIRouter, Depends
 from src.application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
 from src.application.port.inbound.web_chat_use_case import WebChatUseCase
 from src.application.service.web_chat_application_service import WebChatApplicationService
-from src.adapter.inbound.llm.sales_agent import SalesAgent
 from src.adapter.inbound.cli.main import bootstrap_agent
+from src.adapter.outbound.session_factory import SessionFactory
 
 router = APIRouter()
 
-# A simple dependency provider for the use case
-def get_web_chat_use_case() -> WebChatUseCase:
-    # We would normally use a proper DI container, but for this task we instantiate directly or use a singleton.
-    # Note: Since the application service holds state (_active_sessions), we should ideally have a singleton of it.
-    pass
-
-# We create a simple singleton for the scope of the app
 _app_service_instance = None
 
+
 def get_web_chat_use_case_singleton() -> WebChatUseCase:
+    """Dependency injection provider for stateless WebChatUseCase."""
     global _app_service_instance
     if _app_service_instance is None:
         def agent_factory():
             return bootstrap_agent()
-        _app_service_instance = WebChatApplicationService(agent_factory=agent_factory)
+        session_store = SessionFactory.get_session_store()
+        _app_service_instance = WebChatApplicationService(
+            agent_factory=agent_factory,
+            session_store=session_store,
+        )
     return _app_service_instance
 
 

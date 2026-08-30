@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sales-agent-config
+  labels:
+    app: sales-agent
+data:
+  SESSION_STORE: "redis"
+  REDIS_URL: "redis://redis-service:6379/0"
+  SESSION_TTL_SECONDS: "86400"
+  DATA_PATH: "data/raw/sales.csv"
