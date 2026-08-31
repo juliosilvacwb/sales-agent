@@ -103,7 +103,7 @@ Retorna a chave pública RSA em formato PEM padrão (`SubjectPublicKeyInfo`) par
 
 ## `GET /health`
 
-Health check endpoint para sondas de liveness e readiness do Kubernetes e Docker Compose.
+Health check endpoint para sondas de liveness e readiness do Kubernetes (k8s).
 
 ### Resposta de Sucesso (200 OK)
 

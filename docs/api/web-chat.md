@@ -156,7 +156,7 @@ ou
 
 ## `GET /health`
 
-Health check endpoint para sondas de liveness e readiness do Kubernetes e Docker Compose. É uma rota pública e **não** exige cabeçalho de autenticação.
+Health check endpoint para sondas de liveness e readiness do Kubernetes (k8s). É uma rota pública e **não** exige cabeçalho de autenticação.
 
 ### Resposta de Sucesso (200 OK)
 

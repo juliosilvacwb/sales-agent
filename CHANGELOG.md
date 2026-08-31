@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-08-31
+
+### Removed
+
+- **Docker Compose (`docker-compose.yml`):**
+  - Remoção do arquivo `docker-compose.yml` e descontinuação da orquestração local via Docker Compose em favor da orquestração declarativa padronizada via Kubernetes / K3s.
+
+### Changed
+
+- **Padronização de Deploy em Kubernetes (`kubectl`):**
+  - Consolidação do pipeline de implantação em 4 etapas canônicas: Build das Imagens Docker -> Push para o Container Registry (Docker Hub) -> Criação de Secrets no Kubernetes -> Deploy declarativo com `kubectl apply -f k8s/`.
+- **Manifestos Kubernetes e Probes (`k8s/`):**
+  - Atualização do `k8s/configmap.yaml` com mapeamento explícito de `DATASET_PATH`, `LLM_PROVIDER`, `MODEL_NAME` e `LOG_LEVEL`.
+  - Atualização do `k8s/app-deployment.yaml` com suporte a injeção opcional de chaves de múltiplos provedores (OpenAI, Anthropic, Google Gemini) e probes de liveness/readiness apontando para `/health`.
+- **Documentação de Implantação e Guia de Execução (`README.md`):**
+  - Atualização completa do `README.md` com os comandos exatos de build, push, criação de segredos (`kubectl create secret generic sales-agent-secrets --from-literal=...`), deploy, port-forwarding, testes de API com cURL e comandos de teardown.
+
+### Added
+
+- **Template de Segredos Kubernetes (`k8s/secrets.example.yaml`):**
+  - Inclusão de modelo declarativo de segredos (`sales-agent-secrets`) com documentação de campos para credenciais de API de LLM e senhas do Auth Microservice.
+
 ## [1.12.0] - 2026-08-31
 
 ### Added

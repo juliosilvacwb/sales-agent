@@ -379,9 +379,10 @@ challenge_ai_engineer/
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)
 │   ├── auth-deployment.yaml       # Deployment do Auth Microservice (porta 8001, non-root)
 │   ├── auth-service.yaml          # ClusterIP Service interno para Auth Service (porta 8001)
-│   ├── configmap.yaml             # ConfigMap de ambiente (SESSION_STORE, AUTH_SERVICE_URL)
+│   ├── configmap.yaml             # ConfigMap de ambiente (SESSION_STORE, AUTH_SERVICE_URL, etc.)
 │   ├── redis-deployment.yaml      # Deployment do Redis backing service
-│   └── redis-service.yaml         # ClusterIP Service interno para o Redis (porta 6379)
+│   ├── redis-service.yaml         # ClusterIP Service interno para o Redis (porta 6379)
+│   └── secrets.example.yaml       # Template declarativo de Secrets para Kubernetes
 ├── src/
 │   ├── domain/                    # DOMÍNIO PURO (Zero frameworks)
 │   │   ├── exception/             # auth_exceptions.py, session_exceptions.py, sql_validation_exceptions.py
@@ -417,7 +418,6 @@ challenge_ai_engineer/
 │   ├── unit/                      # Testes unitários (domínio, criptografia, evals, guardrails)
 │   └── integration/               # Testes de integração End-to-End, multi-pod e fluxo JWT completo
 ├── .env.example                   # Modelo de variáveis de ambiente
-├── docker-compose.yml             # Orquestração multi-container (auth-service, sales-agent, redis)
 ├── Dockerfile                     # Empacotamento Docker do Sales Agent
 ├── pyproject.toml                 # Configurações do Pytest, MyPy e Ruff
 ├── requirements.txt               # Dependências de runtime em produção
@@ -430,82 +430,139 @@ challenge_ai_engineer/
 
 ### Pré-requisitos
 
-- Python 3.10+ instalado
-- Chave de API de um provedor de IA (OpenAI, Anthropic ou Google Gemini)
-- Docker & Docker Compose (para orquestração multi-serviço)
-- *(Opcional para modo distribuído em cluster)* Redis 7+ e cluster Kubernetes/K3s
+- **Python 3.10+** instalado (para desenvolvimento local ou execução de testes)
+- **Chave de API de LLM** ([OpenAI](https://platform.openai.com/), [Anthropic](https://console.anthropic.com/) ou [Google Gemini](https://aistudio.google.com/))
+- **Docker & Docker Hub CLI** para compilação e publicação das imagens de contêiner
+- **Cluster Kubernetes / K3s** ativo (Docker Desktop Kubernetes, Minikube, Kind, K3s ou Cloud) e CLI `kubectl` configurado
 
-#### Instalação das Dependências
+#### Instalação das Dependências (Modo Desenvolvimento)
 
 ```bash
-# Para desenvolvimento, testes e análise estática (recomendado):
+# Para desenvolvimento, testes automatizados e análise estática (recomendado):
 pip install -r requirements-dev.txt
 
-# Para execução mínima de produção:
+# Para execução mínima de runtime:
 pip install -r requirements.txt
 ```
 
 ---
 
-### Configuração do Ambiente (.env)
+## ☸️ Orquestração e Deploy com Kubernetes (Recomendado)
 
-Copie o arquivo de exemplo e configure suas variáveis:
+O fluxo padrão de publicação e execução em produção utiliza contêineres Docker e orquestração declarativa via **Kubernetes / K3s (`kubectl`)**.
 
-```bash
-cp .env.example .env
-```
+### Fluxo de Deploy em 4 Passos:
 
-Configuração de exemplo:
-
-```env
-# Provedor de IA (Exemplo com OpenAI)
-LLM_PROVIDER=openai
-MODEL_NAME=gpt-4o-mini
-OPENAI_API_KEY=sk-...
-
-DATASET_PATH=dataset/sales.csv
-LOG_LEVEL=INFO
-
-# Persistência de Sessão Conversacional
-SESSION_STORE=memory
-REDIS_URL=redis://localhost:6379/0
-SESSION_TTL_SECONDS=86400
-
-# Configuração de Autenticação Zero Trust
-# 'true': Exige token Bearer JWT nas rotas analíticas protegidas (POST /chat)
-# 'false': Bypassa autenticação para desenvolvimento local offline
-AUTH_ENABLED=false
-AUTH_SERVICE_URL=http://localhost:8001
-AUTH_USER=admin
-AUTH_PASSWORD=changeme
-JWT_EXPIRATION_MINUTES=60
-RSA_PRIVATE_KEY_PATH=keys/private_key.pem
-RSA_PUBLIC_KEY_PATH=keys/public_key.pem
+```text
+[1. Build das Imagens] ──▶ [2. Push Docker Hub] ──▶ [3. Criar Secrets no K8s] ──▶ [4. kubectl apply]
 ```
 
 ---
 
-### 🐳 Execução Rápida via Docker Compose (Recomendado)
+### Passo 1: Build das Imagens Docker
 
-O `docker-compose.yml` orquestra automaticamente os três serviços com health checks configurados:
+Compile as imagens de contêiner para o **Sales Agent** e para o **Microsserviço de Autenticação**:
 
 ```bash
-# Inicia todos os serviços (auth-service na 8001, sales-agent na 8000, redis na 6379)
-docker compose up -d
+# 1. Build da imagem do Sales Data Analysis Agent (porta 8000)
+docker build -t juliosilvacwb/sales-agent:latest -f Dockerfile .
 
-# Visualiza o status dos containers
-docker compose ps
+# 2. Build da imagem do Microsserviço de Autenticação (porta 8001)
+docker build -t juliosilvacwb/auth-service:latest -f auth-service/Dockerfile .
 ```
 
-1. Obtenha um token de acesso autenticando no Auth Microservice:
+---
+
+### Passo 2: Push das Imagens para o Docker Hub / Registry
+
+Envie as imagens compiladas para o repositório remoto:
+
+```bash
+# 1. Autenticar no Docker Hub (se necessário)
+docker login
+
+# 2. Publicar a imagem do Sales Agent
+docker push juliosilvacwb/sales-agent:latest
+
+# 3. Publicar a imagem do Microsserviço de Autenticação
+docker push juliosilvacwb/auth-service:latest
+```
+
+---
+
+### Passo 3: Criar o Secret com as Variáveis de Ambiente no Kubernetes
+
+Crie o Secret `sales-agent-secrets` contendo as credenciais e variáveis sensíveis necessárias para a inicialização dos pods:
+
+```bash
+# Criação do Secret com as credenciais essenciais
+kubectl create secret generic sales-agent-secrets \
+  --from-literal=openai-api-key="sk-proj-sua-chave-api-openai-aqui" \
+  --from-literal=auth-password="sua-senha-admin-aqui"
+```
+
+> [!TIP]
+> Caso utilize outro provedor de LLM (Anthropic ou Google Gemini) ou deseje injetar chaves RSA customizadas, passe os parâmetros adicionais correspondentes:
+> ```bash
+> kubectl create secret generic sales-agent-secrets \
+>   --from-literal=openai-api-key="sk-..." \
+>   --from-literal=anthropic-api-key="sk-ant-..." \
+>   --from-literal=google-api-key="AIza..." \
+>   --from-literal=auth-password="changeme"
+> ```
+
+---
+
+### Passo 4: Deploy dos Manifestos com `kubectl`
+
+Aplique todos os manifestos de infraestrutura (ConfigMap, Deployments e Services):
+
+```bash
+# Aplica toda a topologia (Redis, Auth Service e Sales Agent multi-réplicas)
+kubectl apply -f k8s/
+```
+
+---
+
+### Passo 5: Verificar o Status dos Pods e Serviços
+
+Acompanhe a inicialização dos contêineres e o status dos healthchecks de liveness/readiness:
+
+```bash
+# Listar pods em execução
+kubectl get pods -o wide
+
+# Listar deployments e serviços
+kubectl get deployments,services
+```
+
+---
+
+### Passo 6: Acessar os Serviços via Port-Forward
+
+Como os serviços utilizam `ClusterIP` para segurança interna de rede, utilize o redirecionamento de portas para acesso local:
+
+```bash
+# Terminal 1: Redireciona o Sales Agent Web para a porta 8000
+kubectl port-forward svc/sales-agent-service 8000:8000
+
+# Terminal 2: Redireciona o Auth Microservice para a porta 8001
+kubectl port-forward svc/auth-service 8001:8001
+```
+
+---
+
+### Passo 7: Teste de Autenticação e Consulta Analítica
+
+1. **Obtenha o token JWT no Microsserviço de Autenticação:**
 
 ```bash
 curl -X POST http://localhost:8001/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "changeme"}'
+  -d '{"username": "admin", "password": "sua-senha-admin-aqui"}'
 ```
 
-2. Utilize o token retornado para acessar a API analítica:
+2. **Execute uma consulta analítica no Sales Agent com o token retornado:**
 
 ```bash
 curl -X POST http://localhost:8000/chat \
@@ -514,130 +571,53 @@ curl -X POST http://localhost:8000/chat \
   -d '{"session_id": "sess-1", "message": "Qual o produto mais vendido?"}'
 ```
 
-Para encerrar os serviços:
+3. **Acesse a Interface Web:**
+   - Abra o navegador em: [http://localhost:8000/](http://localhost:8000/)
+   - Documentação Swagger da API: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+### Passo 8: Limpeza e Remoção dos Recursos
+
+Para remover todos os recursos do cluster Kubernetes:
 
 ```bash
-docker compose down
+# Excluir deployments, services e configmaps
+kubectl delete -f k8s/
+
+# Excluir os segredos
+kubectl delete secret sales-agent-secrets
 ```
 
 ---
 
-### Execução Local (Standalone para Desenvolvimento)
+### 💻 Execução Local Standalone (Desenvolvimento Rápido)
 
-#### 1. Iniciar o Microsserviço de Autenticação (Porta 8001)
+Para rodar os serviços localmente no Python sem contêineres:
+
+#### 1. Configurar o `.env`
+
+```bash
+cp .env.example .env
+# Edite o .env com sua OPENAI_API_KEY e configurações desejadas
+```
+
+#### 2. Iniciar o Microsserviço de Autenticação (Porta 8001)
 
 ```bash
 python -m uvicorn --app-dir auth-service app:app --port 8001 --reload
 ```
 
-#### 2. Iniciar o Sales Agent Web (Porta 8000)
+#### 3. Iniciar o Sales Agent Web (Porta 8000)
 
 ```bash
 python -m uvicorn src.adapter.inbound.web.main:app --port 8000 --reload
 ```
 
-Acesse a interface web em `http://localhost:8000/` e a documentação Swagger em `http://localhost:8000/docs`.
-
----
-
-### Execução Local (Modo CLI no Terminal)
+#### 4. Executar em Modo CLI no Terminal
 
 ```bash
 python -m src.adapter.inbound.cli.main
-```
-
----
-
-## 🐳 Build, Execução e Publicação com Docker & Docker Hub
-
-O ecossistema do projeto é composto por dois contêineres principais (`sales-agent` e `auth-service`) e um backing store (`redis`).
-
-### 1. Execução Multi-Contêiner com Docker Compose
-
-Para subir todos os serviços integrados localmente com orquestração automática e healthchecks:
-
-```bash
-# 1. Configurar variáveis de ambiente
-cp .env.example .env
-# Preencha sua OPENAI_API_KEY no arquivo .env
-
-# 2. Construir e subir todos os serviços em background
-docker compose up --build -d
-
-# 3. Verificar o status e healthcheck dos contêineres
-docker compose ps
-
-# 4. Acompanhar logs
-docker compose logs -f
-```
-
----
-
-### 2. Build das Imagens Docker
-
-Para compilar as imagens isoladamente com tags locais ou de repositório:
-
-```bash
-# Build da imagem do Sales Data Analysis Agent
-docker build -t juliosilvacwb/sales-agent:latest -f Dockerfile .
-
-# Build da imagem do Microsserviço de Autenticação
-docker build -t juliosilvacwb/auth-service:latest -f auth-service/Dockerfile .
-```
-
----
-
-### 3. Autenticação e Push para o Docker Hub
-
-Para publicar as versões compiladas no [Docker Hub](https://hub.docker.com/u/juliosilvacwb):
-
-```bash
-# 1. Autenticar na conta do Docker Hub
-docker login
-
-# 2. Publicar a tag latest do Sales Agent
-docker push juliosilvacwb/sales-agent:latest
-
-# 3. Publicar a tag latest do Auth Service
-docker push juliosilvacwb/auth-service:latest
-
-# (Opcional) Publicar tags versionadas (SemVer)
-docker tag juliosilvacwb/sales-agent:latest juliosilvacwb/sales-agent:v1.0.0
-docker tag juliosilvacwb/auth-service:latest juliosilvacwb/auth-service:v1.0.0
-docker push juliosilvacwb/sales-agent:v1.0.0
-docker push juliosilvacwb/auth-service:v1.0.0
-```
-
----
-
-## ☸️ Orquestração Kubernetes / K3s (Topologia de Produção)
-
-O projeto inclui manifestos declarativos prontos para produção na pasta `k8s/`:
-
-1. **`auth-deployment.yaml` & `auth-service.yaml`:** Microsserviço de autenticação (`auth-service:8001`) executando como `appuser` (não-root) com probes de liveness/readiness e montagem de segredos via Kubernetes Secrets.
-2. **`redis-deployment.yaml` & `redis-service.yaml`:** Backing store Redis centralizado com probes TCP e `redis-cli ping`.
-3. **`app-deployment.yaml` & `app-service.yaml`:** Sales Agent multi-réplica (`replicas: 2`) com validação offline de tokens via chave pública em cache e persistência stateless de sessão no Redis.
-4. **`configmap.yaml`:** Configurações não-sensíveis compartilhadas entre os pods.
-
-### 1. Criar os Secrets
-
-```bash
-kubectl create secret generic sales-agent-secrets \
-  --from-literal=openai-api-key="sk-proj-sua-chave-api-aqui" \
-  --from-literal=auth-password="sua-senha-segura"
-```
-
-### 2. Aplicar os Manifestos
-
-```bash
-kubectl apply -f k8s/
-```
-
-### 3. Verificar Pods e Serviços
-
-```bash
-kubectl get pods
-kubectl get svc
 ```
 
 ---

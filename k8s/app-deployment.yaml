@@ -33,6 +33,18 @@ spec:
                   name: sales-agent-secrets
                   key: openai-api-key
                   optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sales-agent-secrets
+                  key: anthropic-api-key
+                  optional: true
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sales-agent-secrets
+                  key: google-api-key
+                  optional: true
           resources:
             requests:
               cpu: 250m
@@ -42,13 +54,13 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /
+              path: /health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
