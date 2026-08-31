@@ -43,17 +43,27 @@ class SqlGlotParserAdapter(SqlParserPort):
         all_node_types = set()
         all_function_names = set()
 
-        for node, parent, key in ast_root.walk():
+        for node in ast_root.walk():
             # Add node type
             all_node_types.add(type(node).__name__.upper())
             
             # Detect function calls
-            if isinstance(node, exp.Func):
-                if hasattr(node, "name"):
-                    all_function_names.add(node.name.upper())
-            elif type(node).__name__.upper() == "ANONYMOUS":
-                if hasattr(node, "name"):
-                    all_function_names.add(node.name.upper())
+            if isinstance(node, exp.Func) or type(node).__name__.upper() == "ANONYMOUS":
+                names = []
+                if hasattr(node, "name") and node.name:
+                    names.append(node.name)
+                if hasattr(node, "sql_name"):
+                    names.append(node.sql_name())
+                class_name = type(node).__name__
+                names.append(class_name)
+                # Convert CamelCase like ReadCSV -> READ_CSV
+                import re
+                snake = re.sub(r'(?<!^)(?=[A-Z])', '_', class_name)
+                names.append(snake)
+                
+                for n in names:
+                    if n:
+                        all_function_names.add(n.upper())
 
         return ParsedSqlStatement(
             root_node_type=root_node_type,

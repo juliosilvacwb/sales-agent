@@ -4,6 +4,8 @@
 
 - **PRD:** [R006-microservice-jwt-authentication.md](../business-requirements/R006-microservice-jwt-authentication.md)
 - **Product Strategy:** [PS006-microservice-jwt-authentication.md](../product-strategy/PS006-microservice-jwt-authentication.md)
+- **Test Coverage:** [TEST006-microservice-jwt-authentication.md](../tests/TEST006-microservice-jwt-authentication.md)
+- **Security Audit:** [S006-microservice-jwt-authentication.md](../security/S006-microservice-jwt-authentication.md)
 
 ## Technical Goal
 
@@ -189,19 +191,19 @@ Microservice container (Ref: R006, PRD01-PRD08, BR01).
 
 #### Leaf nodes (fully parallel — no domain dependencies)
 
-- [ ] Task 001 - [Domain-Exception]: Create
+- [COMPLETED] Task 001 - [Domain-Exception]: Create
   `AuthenticationError` exception hierarchy
   (Depends On: —)
-- [ ] Task 002 - [Domain-Model]: Create
+- [COMPLETED] Task 002 - [Domain-Model]: Create
   `TokenClaims` value object (Depends On: —)
-- [ ] Task 003 - [Domain-Model]: Create
+- [COMPLETED] Task 003 - [Domain-Model]: Create
   `AuthCredentials` value object (Depends On: —)
-- [ ] Task 004 - [Domain-Model]: Create
+- [COMPLETED] Task 004 - [Domain-Model]: Create
   `TokenResponse` value object (Depends On: —)
 
 #### Domain service (depends on models above)
 
-- [ ] Task 005 - [Domain-Service]: Implement
+- [COMPLETED] Task 005 - [Domain-Service]: Implement
   `CredentialValidator` domain service
   (Depends On: Task 001, Task 003)
 
@@ -209,60 +211,60 @@ Microservice container (Ref: R006, PRD01-PRD08, BR01).
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 006 - [Port-Out]: Define `TokenSignerPort`
+- [COMPLETED] Task 006 - [Port-Out]: Define `TokenSignerPort`
   output port interface (Depends On: Task 002, Task 004)
-- [ ] Task 007 - [Port-Out]: Define `TokenVerifierPort`
+- [COMPLETED] Task 007 - [Port-Out]: Define `TokenVerifierPort`
   output port interface (Depends On: Task 002)
-- [ ] Task 008 - [Port-Out]: Define
+- [COMPLETED] Task 008 - [Port-Out]: Define
   `PublicKeyProviderPort` output port interface
   (Depends On: —)
-- [ ] Task 009 - [Port-In]: Define
+- [COMPLETED] Task 009 - [Port-In]: Define
   `AuthenticateUserUseCase` input port interface
   (Depends On: Task 003, Task 004)
-- [ ] Task 010 - [UseCase]: Implement
+- [COMPLETED] Task 010 - [UseCase]: Implement
   `AuthenticationApplicationService`
   (Depends On: Task 005, Task 006, Task 009)
-- [ ] Task 011 - [Config]: Add `PyJWT` and
+- [COMPLETED] Task 011 - [Config]: Add `PyJWT` and
   `cryptography` to dependencies (Depends On: —)
 
 ### 🟢 Phase 3 — Adapters (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 012 - [Adapter-External]: Implement
+- [COMPLETED] Task 012 - [Adapter-External]: Implement
   `JwtRs256TokenAdapter` (sign + verify)
   (Depends On: Task 006, Task 007, Task 011)
-- [ ] Task 013 - [Adapter-External]: Implement
+- [COMPLETED] Task 013 - [Adapter-External]: Implement
   `RsaKeyManager` for key generation and loading
   (Depends On: Task 011)
-- [ ] Task 014 - [Adapter-Web]: Implement Auth
+- [COMPLETED] Task 014 - [Adapter-Web]: Implement Auth
   Microservice FastAPI app with login and public-key
   endpoints (Depends On: Task 010, Task 012, Task 013)
-- [ ] Task 015 - [Adapter-Web]: Implement
+- [COMPLETED] Task 015 - [Adapter-Web]: Implement
   `HttpPublicKeyProvider` for Sales Agent
   (Depends On: Task 008)
-- [ ] Task 016 - [Adapter-Web]: Implement
+- [COMPLETED] Task 016 - [Adapter-Web]: Implement
   `JwtSecurityGuard` FastAPI dependency for Sales Agent
   (Depends On: Task 007, Task 015)
-- [ ] Task 017 - [Adapter-Web]: Integrate
+- [COMPLETED] Task 017 - [Adapter-Web]: Integrate
   `JwtSecurityGuard` into `chat_controller.py`
   (Depends On: Task 016)
-- [ ] Task 018 - [Adapter-Infra]: Create Auth Service
+- [COMPLETED] Task 018 - [Adapter-Infra]: Create Auth Service
   Dockerfile and update docker-compose.yml
   (Depends On: Task 014)
-- [ ] Task 019 - [Adapter-Infra]: Update K8s manifests
+- [COMPLETED] Task 019 - [Adapter-Infra]: Update K8s manifests
   with Auth Service Deployment and ConfigMap
   (Depends On: Task 014)
-- [ ] Task 020 - [Config]: Update `.env.example` with
+- [COMPLETED] Task 020 - [Config]: Update `.env.example` with
   auth environment variables (Depends On: —)
-- [ ] Task 021 - [Test-Unit]: Unit tests for
+- [COMPLETED] Task 021 - [Test-Unit]: Unit tests for
   `CredentialValidator` and domain models
   (Depends On: Task 005)
-- [ ] Task 022 - [Test-Unit]: Unit tests for
+- [COMPLETED] Task 022 - [Test-Unit]: Unit tests for
   `JwtRs256TokenAdapter` (Depends On: Task 012)
-- [ ] Task 023 - [Test-Unit]: Unit tests for
+- [COMPLETED] Task 023 - [Test-Unit]: Unit tests for
   `JwtSecurityGuard` (Depends On: Task 016)
-- [ ] Task 024 - [Test-Integration]: End-to-end auth
+- [COMPLETED] Task 024 - [Test-Integration]: End-to-end auth
   flow integration test (Depends On: Task 014,
   Task 016, Task 017)
 

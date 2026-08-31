@@ -1,11 +1,15 @@
 """Web Chat REST Controller."""
+import logging
 from fastapi import APIRouter, Depends
+from src.domain.model.auth_models import TokenClaims
 from src.application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
 from src.application.port.inbound.web_chat_use_case import WebChatUseCase
 from src.application.service.web_chat_application_service import WebChatApplicationService
 from src.adapter.inbound.cli.main import bootstrap_agent
 from src.adapter.outbound.session_factory import SessionFactory
+from src.adapter.inbound.web.jwt_security_guard import verify_jwt_token
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _app_service_instance = None
@@ -28,8 +32,10 @@ def get_web_chat_use_case_singleton() -> WebChatUseCase:
 @router.post("/chat", response_model=ChatResponseDTO)
 def process_chat(
     request: ChatRequestDTO,
-    use_case: WebChatUseCase = Depends(get_web_chat_use_case_singleton)
+    claims: TokenClaims = Depends(verify_jwt_token),
+    use_case: WebChatUseCase = Depends(get_web_chat_use_case_singleton),
 ) -> ChatResponseDTO:
-    """Endpoint for processing chat messages."""
+    """Endpoint for processing chat messages with mandatory JWT authentication when enabled."""
+    logger.info("Authenticated request from user: %s (session_id: %s)", claims.sub, request.session_id)
     response = use_case.process_chat_message(request)
     return response

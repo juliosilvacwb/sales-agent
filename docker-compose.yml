@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: auth-service
+    ports:
+      - "8001:8001"
+    environment:
+      - AUTH_USER=admin
+      - AUTH_PASSWORD=changeme
+      - JWT_EXPIRATION_MINUTES=60
+      - RSA_PRIVATE_KEY_PATH=/app/keys/private_key.pem
+      - RSA_PUBLIC_KEY_PATH=/app/keys/public_key.pem
+      - LOG_LEVEL=INFO
+    volumes:
+      - auth_keys:/app/keys
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sales-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  sales-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sales-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - AUTH_ENABLED=true
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - SESSION_STORE=redis
+      - REDIS_URL=redis://redis:6379/0
+      - SESSION_TTL_SECONDS=86400
+      - DATASET_PATH=/app/dataset/sales.csv
+      - LOG_LEVEL=INFO
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  auth_keys:

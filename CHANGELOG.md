@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-30
+
+### Added
+
+- **Microsserviço de Autenticação Assimétrica JWT RS256 (T006 / R006):** Criação de arquitetura Zero Trust baseada em microsserviço independente (`auth-service/`) como detentor exclusivo da chave privada RSA-2048, emitindo tokens de acesso assinados (`RS256`).
+- **Endpoint de Autenticação e Login (`POST /auth/login`):** Validação de credenciais administrativas em tempo constante (`hmac.compare_digest`) e emissão de tokens JWT com expiração temporal (`JWT_EXPIRATION_MINUTES`).
+- **Endpoint de Distribuição de Chave Pública (`GET /auth/public-key`):** Distribuição da chave pública RSA em formato PEM para consumo e validação offline por microsserviços analíticos.
+- **Modelos e Value Objects de Domínio (`src/domain/model/auth_models.py`):** Criação de `TokenClaims`, `AuthCredentials` e `TokenResponse` como estruturas de dados imutáveis (`frozen=True`).
+- **Hierarquia de Exceções de Domínio (`src/domain/exception/auth_exceptions.py`):** Exceções `AuthenticationError`, `InvalidCredentialsError`, `InvalidTokenError`, `ExpiredTokenError` e `MissingTokenError`.
+- **Serviço de Domínio `CredentialValidator` (`src/domain/service/credential_validator.py`):** Validador puro com mitigação de ataques de canal lateral/timing attack.
+- **Portas de Saída e Entrada (`src/application/port/`):** Contratos de abstração `TokenSignerPort`, `TokenVerifierPort`, `PublicKeyProviderPort` e caso de uso `AuthenticateUserUseCase`.
+- **Serviço de Aplicação `AuthenticationApplicationService` (`src/application/service/authentication_service.py`):** Orquestrador de autenticação e construção de claims.
+- **Adaptador Criptográfico `JwtRs256TokenAdapter` (`src/adapter/outbound/auth/jwt_token_adapter.py`):** Assinatura e verificação de tokens RS256 via PyJWT e cryptography com whitelist estrita de algoritmos.
+- **Gerenciador de Chaves `RsaKeyManager` (`src/adapter/outbound/auth/rsa_key_manager.py`):** Geração, persistência em disco e carregamento via variáveis de ambiente/Secrets de pares de chaves RSA-2048.
+- **Provedor HTTP de Chave Pública `HttpPublicKeyProvider` (`src/adapter/outbound/auth/http_public_key_provider.py`):** Cliente com cache em memória e lazy loading para verificação offline sub-milissegundo (< 0.5ms).
+- **Inbound Security Guard `JwtSecurityGuard` (`src/adapter/inbound/web/jwt_security_guard.py`):** Injeção de dependência FastAPI `verify_jwt_token` validando cabeçalho `Authorization: Bearer <token>` em rotas protegidas.
+- **Docker Compose Multi-Container (`docker-compose.yml`):** Orquestração completa de 3 serviços (`auth-service:8001`, `sales-agent:8000`, `redis:6379`).
+- **Manifestos Declarativos K3s/Kubernetes:** Manifestos `k8s/auth-deployment.yaml`, `k8s/auth-service.yaml` e atualização de `k8s/configmap.yaml` para orquestração em cluster.
+- **Documentação de API Atualizada:** Criação de `docs/api/auth-service.md` e atualização de `docs/api/web-chat.md`.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R006-microservice-jwt-authentication.md`, `T006-microservice-jwt-authentication.md`, `TEST006-microservice-jwt-authentication.md`, `S006-microservice-jwt-authentication.md`, `Q006-microservice-jwt-authentication.md` e `docs/api/auth-service.md`.
+
+### Changed
+
+- **Proteção do Endpoint Analítico (`src/adapter/inbound/web/chat_controller.py`):** Rota `POST /chat` atualizada com `Depends(verify_jwt_token)` para impor validação Bearer e registrar log de auditoria com o `sub` do usuário.
+- **Dependências do Projeto (`requirements.txt` e `auth-service/requirements.txt`):** Adicionadas as bibliotecas `PyJWT>=2.8.0` e `cryptography>=42.0.0`.
+- **Configuração de Ambiente (`.env.example`):** Novas variáveis `AUTH_ENABLED`, `AUTH_SERVICE_URL`, `AUTH_USER`, `AUTH_PASSWORD`, `JWT_EXPIRATION_MINUTES`, `RSA_PRIVATE_KEY_PATH`, `RSA_PUBLIC_KEY_PATH`.
+
+### Security & Reliability
+
+- **Segregação Criptográfica Zero Trust (BR01 / NIST SP 800-207):** Chave privada isolada exclusivamente no processo do Auth Service; o pod do Sales Agent nunca recebe nem manipula a chave privada, impedindo forja de tokens.
+- **Prevenção de Confusão de Algoritmo (CWE-347):** Decodificação restrita a `RS256`, bloqueando ataques de algoritmo `none` ou transmutação de chave pública para HMAC simétrico.
+- **Mitigação de Timing Attack (CWE-208):** Comparação em tempo constante de usuário e senha via `hmac.compare_digest()`.
+- **Sanitização de Mensagens e Prevenção de Enumeração (CWE-209):** Respostas de erro uniformes (`{"detail": "Credenciais inválidas"}` / `{"detail": "Token inválido ou expirado"}`).
+- **Resiliência e Alta Disponibilidade:** O Sales Agent continua validando tokens vigentes com a chave pública em cache mesmo durante reinicializações da Auth Service.
+
 ## [1.4.0] - 2026-08-30
 
 ### Added

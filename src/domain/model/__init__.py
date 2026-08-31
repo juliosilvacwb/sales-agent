@@ -24,6 +24,11 @@ from src.domain.model.aggregation_models import (
     SeasonalityAggregation,
     PriceElasticityAggregation,
 )
+from src.domain.model.auth_models import (
+    TokenClaims,
+    AuthCredentials,
+    TokenResponse,
+)
 
 __all__ = [
     "SaleRecord",
@@ -47,5 +52,7 @@ __all__ = [
     "AverageDiscountAggregation",
     "SeasonalityAggregation",
     "PriceElasticityAggregation",
+    "TokenClaims",
+    "AuthCredentials",
+    "TokenResponse",
 ]
-
