@@ -50,6 +50,42 @@ os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
+@app.post("/auth/login")
+def auth_login_proxy(request: dict) -> Any:
+    """Proxy authentication requests to the configured Auth Microservice."""
+    import json
+    import urllib.request
+    import urllib.error
+    from fastapi import HTTPException, status
+
+    auth_service_url = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001").rstrip("/")
+    target_url = f"{auth_service_url}/auth/login"
+    payload = json.dumps(request).encode("utf-8")
+    req = urllib.request.Request(
+        target_url,
+        data=payload,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            body = response.read().decode("utf-8")
+            return json.loads(body)
+    except urllib.error.HTTPError as err:
+        error_body = err.read().decode("utf-8")
+        try:
+            err_json = json.loads(error_body)
+            detail = err_json.get("detail", "Credenciais inválidas")
+        except Exception:
+            detail = "Credenciais inválidas"
+        raise HTTPException(status_code=err.code, detail=detail)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Não foi possível conectar ao serviço de autenticação ({auth_service_url}): {exc}",
+        )
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}

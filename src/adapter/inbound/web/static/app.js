@@ -22,8 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const logoutBtn = document.getElementById("logout-btn");
     const loginSubmitBtn = document.getElementById("login-submit-btn");
 
-    // Internal Auth Service URL configuration
-    const AUTH_SERVICE_URL = window.AUTH_SERVICE_URL || "http://localhost:8001";
+    // Internal Auth Service URL configuration (defaults to relative /auth/login proxy or window override)
+    const AUTH_SERVICE_URL = window.AUTH_SERVICE_URL || "";
 
     // Initialize or retrieve session ID
     let sessionId = sessionStorage.getItem("chat_session_id");
@@ -140,10 +140,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const username = authUsernameInput.value.trim();
         const password = authPasswordInput.value;
-        const authUrl = AUTH_SERVICE_URL.replace(/\/+$/, "");
+        const targetUrl = AUTH_SERVICE_URL ? `${AUTH_SERVICE_URL.replace(/\/+$/, "")}/auth/login` : "/auth/login";
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
         try {
-            const response = await fetch(`${authUrl}/auth/login`, {
+            const response = await fetch(targetUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -151,8 +154,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({
                     username: username,
                     password: password
-                })
+                }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({ detail: "Credenciais inválidas" }));
@@ -170,7 +176,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 sendMessage(msg);
             }
         } catch (err) {
-            loginErrorMsg.textContent = err.message || "Erro ao conectar com o serviço de autenticação.";
+            clearTimeout(timeoutId);
+            if (err.name === "AbortError") {
+                loginErrorMsg.textContent = "Tempo limite excedido ao conectar com o serviço de autenticação.";
+            } else {
+                loginErrorMsg.textContent = err.message || "Erro ao conectar com o serviço de autenticação.";
+            }
             loginErrorMsg.style.display = "block";
         } finally {
             loginSubmitBtn.disabled = false;
