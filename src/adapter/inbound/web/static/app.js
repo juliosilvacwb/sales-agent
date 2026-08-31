@@ -55,22 +55,50 @@ document.addEventListener("DOMContentLoaded", () => {
         const username = sessionStorage.getItem("jwt_auth_user") || "admin";
         if (token) {
             authBtn.classList.add("authenticated");
+            authBtn.classList.remove("unauthenticated");
             authBtnLabel.textContent = `🔑 ${username}`;
             logoutBtn.style.display = "inline-block";
             loginSubmitBtn.textContent = "Renovar Token";
-            if (chatInput) chatInput.disabled = false;
-            if (sendBtn) sendBtn.disabled = false;
-            if (agentStatusText) agentStatusText.textContent = "Online";
-            if (statusIndicator) statusIndicator.classList.remove("unauthenticated");
+            if (chatInput) {
+                chatInput.disabled = false;
+                chatInput.placeholder = "Ask about sales data...";
+            }
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                sendBtn.removeAttribute("title");
+            }
+            if (agentStatusText) {
+                agentStatusText.textContent = "Online";
+                agentStatusText.classList.add("authenticated");
+                agentStatusText.classList.remove("unauthenticated");
+            }
+            if (statusIndicator) {
+                statusIndicator.classList.add("authenticated");
+                statusIndicator.classList.remove("unauthenticated");
+            }
         } else {
             authBtn.classList.remove("authenticated");
+            authBtn.classList.add("unauthenticated");
             authBtnLabel.textContent = "Autenticar";
             logoutBtn.style.display = "none";
             loginSubmitBtn.textContent = "Entrar e Obter Token";
-            if (chatInput) chatInput.disabled = true;
-            if (sendBtn) sendBtn.disabled = true;
-            if (agentStatusText) agentStatusText.textContent = "Não autenticado";
-            if (statusIndicator) statusIndicator.classList.add("unauthenticated");
+            if (chatInput) {
+                chatInput.disabled = true;
+                chatInput.placeholder = "Faça login para interagir com o Sales Agent...";
+            }
+            if (sendBtn) {
+                sendBtn.disabled = true;
+                sendBtn.title = "Autentique-se para enviar mensagens";
+            }
+            if (agentStatusText) {
+                agentStatusText.textContent = "Não autenticado";
+                agentStatusText.classList.add("unauthenticated");
+                agentStatusText.classList.remove("authenticated");
+            }
+            if (statusIndicator) {
+                statusIndicator.classList.add("unauthenticated");
+                statusIndicator.classList.remove("authenticated");
+            }
         }
     }
 
@@ -264,11 +292,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 errorBanner.textContent = "Network error. Please try again.";
             }
             console.error("Chat error:", error);
+        } finally {
+            updateAuthUI();
         }
     }
 
     chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
+        if (!getJwtToken()) {
+            openModal("Por favor, realize a autenticação antes de enviar mensagens.");
+            return;
+        }
         const message = chatInput.value.trim();
         
         if (message) {

@@ -83,15 +83,32 @@ body {
 .status-indicator {
     width: 8px;
     height: 8px;
-    background-color: #10b981;
+    background-color: #ef4444;
     border-radius: 50%;
-    box-shadow: 0 0 8px #10b981;
+    box-shadow: 0 0 8px #ef4444;
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.status-indicator.authenticated {
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
 }
 
 .status-indicator.unauthenticated {
     background-color: #ef4444;
     box-shadow: 0 0 8px #ef4444;
+}
+
+#agent-status-text {
+    transition: color 0.3s ease;
+}
+
+#agent-status-text.authenticated {
+    color: #34d399;
+}
+
+#agent-status-text.unauthenticated {
+    color: #f87171;
 }
 
 .chat-container {
@@ -349,9 +366,9 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.4);
-    color: #60a5fa;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
     padding: 6px 12px;
     border-radius: 8px;
     font-size: 0.85rem;
@@ -361,14 +378,30 @@ body {
 }
 
 .auth-btn:hover {
-    background: rgba(59, 130, 246, 0.25);
-    border-color: #3b82f6;
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+}
+
+.auth-btn.unauthenticated {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+
+.auth-btn.unauthenticated:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
 }
 
 .auth-btn.authenticated {
     background: rgba(16, 185, 129, 0.15);
     border-color: rgba(16, 185, 129, 0.4);
     color: #34d399;
+}
+
+.auth-btn.authenticated:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: #10b981;
 }
 
 /* Modal Backdrop & Card */
