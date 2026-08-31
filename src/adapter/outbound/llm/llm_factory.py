@@ -65,3 +65,8 @@ class LLMFactory:
             temperature=resolved_temp,
             **kwargs,
         )
+
+
+# Alias for backward compatibility
+LlmFactory = LLMFactory
+

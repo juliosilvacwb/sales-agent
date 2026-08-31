@@ -1,0 +1,118 @@
+[
+  {
+    "eval_id": "EVAL_001_TOP_SELLING_PRODUCT",
+    "category": "REVENUE",
+    "question": "Qual é o produto mais vendido em termos de volume e receita gerada?",
+    "expected_tool": "get_top_selling_product",
+    "expected_metrics": {
+      "product_id": "Prod_B",
+      "total_quantity": 280.0,
+      "total_revenue": 26200.0,
+      "total_records": 2
+    }
+  },
+  {
+    "eval_id": "EVAL_002_TOP_LOCATIONS",
+    "category": "LOGISTICS",
+    "question": "Quais são as principais localidades por volume de vendas?",
+    "expected_tool": "get_top_locations_by_volume",
+    "expected_metrics": {
+      "primary_location": "Whse_North",
+      "primary_quantity": 360.0
+    }
+  },
+  {
+    "eval_id": "EVAL_003_TOTAL_SALES_PERIOD",
+    "category": "REVENUE",
+    "question": "Qual foi o total de vendas gerais (volume e faturamento)?",
+    "expected_tool": "get_total_sales_in_period",
+    "expected_metrics": {
+      "total_quantity": 550.0,
+      "total_revenue": 37300.0,
+      "total_records": 5,
+      "average_ticket": 7460.0
+    }
+  },
+  {
+    "eval_id": "EVAL_004_PLANNED_VS_ACTUAL",
+    "category": "REVENUE",
+    "question": "Como foi o desempenho das quantidades realizadas versus planejadas?",
+    "expected_tool": "compare_planned_vs_actual_quantity",
+    "expected_metrics": {
+      "total_planned_quantity": 580.0,
+      "total_actual_quantity": 550.0,
+      "difference_quantity": -30.0,
+      "achievement_percentage": 94.827
+    }
+  },
+  {
+    "eval_id": "EVAL_005_PROMOTION_IMPACT",
+    "category": "PROMOTION",
+    "question": "Qual foi o impacto das promoções nas vendas e o volume lift gerado?",
+    "expected_tool": "analyze_promotion_impact",
+    "expected_metrics": {
+      "promoted_sales_count": 2,
+      "non_promoted_sales_count": 3,
+      "promoted_total_quantity": 300.0,
+      "non_promoted_total_quantity": 250.0,
+      "volume_lift_percentage": 20.0
+    }
+  },
+  {
+    "eval_id": "EVAL_006_SERVICE_LEVEL_BOTTLENECKS",
+    "category": "LOGISTICS",
+    "question": "Qual armazém ou localidade apresenta o pior nível de serviço (SLA)?",
+    "expected_tool": "analyze_service_level_bottlenecks",
+    "expected_metrics": {
+      "worst_location": "Whse_South",
+      "worst_service_level": 0.775,
+      "overall_average_service_level": 0.866
+    }
+  },
+  {
+    "eval_id": "EVAL_007_REVENUE_DEFICIT",
+    "category": "REVENUE",
+    "question": "Houve déficit de receita ou perda financeira comparando realizado versus planejado?",
+    "expected_tool": "calculate_revenue_deficit",
+    "expected_metrics": {
+      "has_deficit": true,
+      "total_planned_revenue": 45000.0,
+      "total_actual_revenue": 37300.0,
+      "total_revenue_deficit": 7700.0,
+      "deficit_percentage": 17.111
+    }
+  },
+  {
+    "eval_id": "EVAL_008_AVERAGE_DISCOUNT",
+    "category": "PROMOTION",
+    "question": "Qual foi o percentual de desconto médio praticado e o valor total concedido?",
+    "expected_tool": "calculate_average_discount",
+    "expected_metrics": {
+      "overall_average_discount_percentage": 17.111,
+      "total_discount_value": 7700.0
+    }
+  },
+  {
+    "eval_id": "EVAL_009_SEASONALITY",
+    "category": "SEASONALITY",
+    "question": "Quais são os padrões sazonais e o mês de maior volume de vendas?",
+    "expected_tool": "identify_sales_seasonality",
+    "expected_metrics": {
+      "peak_month": "2023-02",
+      "peak_volume": 280.0,
+      "lowest_month": "2023-03",
+      "lowest_volume": 60.0
+    }
+  },
+  {
+    "eval_id": "EVAL_010_PRICE_ELASTICITY",
+    "category": "ELASTICITY",
+    "question": "Qual é o coeficiente de elasticidade-preço da demanda para o produto Prod_A?",
+    "expected_tool": "calculate_price_elasticity",
+    "expected_metrics": {
+      "product_id": "Prod_A",
+      "elasticity_coefficient": -3.333,
+      "demand_classification": "Elástica"
+    }
+  }
+]

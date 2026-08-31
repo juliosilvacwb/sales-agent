@@ -25,6 +25,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 8. **Segurança Corporativa & AST Guardrails:** Bloqueio determinístico de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.) e funções do sistema de arquivos (`read_csv`, `read_text`, `glob`) via inspeção recursiva de AST com `sqlglot`, isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), sanitização contra injeção de HTML/JS no frontend (`DOMPurify`), e redação de paths internos `[REDACTED_PATH]`.
 9. **Escalabilidade Distribuída & Sessão Stateless (Redis + K3s):** Camada de computação 100% desacoplada de estado conversacional através da porta de saída `SessionStorePort` e `SessionFactory`, permitindo escalabilidade horizontal em Kubernetes/K3s com multi-réplicas sem perda de histórico conversacional entre pods ou durante rolling updates.
 10. **Autocorreção Agêntica e Resiliência a Erros (T009 / R009):** Mecanismo autônomo baseado em `ToolException` nativo da LangChain. Falhas de consulta SQL (ex: colunas alucinadas, erros de sintaxe) e erros de validação de datas são interceptados e re-injetados no contexto do LLM com telemetria `[AGENT_SELF_CORRECTION]`, permitindo que o modelo repare seus próprios parâmetros em um único turno com teto estrito de 3 tentativas (`recursion_limit: 8`), garantindo zero exposição de erros técnicos ao usuário final (Regra BR01).
+11. **Avaliações Determinísticas com Golden Evals (T010 / R010):** Framework automatizado de benchmarking contínuo para prevenção de alucinações matemáticas e *Prompt Drift*. Intercepta payloads JSON estruturados de ferramentas intermediárias antes da síntese em linguagem natural, aplicando asserções exatas com tolerâncias de ponto flutuante (`abs_tol=0.01`, `rel_tol=1e-3`) e integrando um Quality Gate bloqueante no pipeline de CI/CD (`.github/workflows/evals.yml`).
 
 ---
 
@@ -201,6 +202,46 @@ sequenceDiagram
 
 ---
 
+### 🎯 Fluxo de Avaliação Determinística (Golden Evals Harness & Quality Gate)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor CI as Pipeline CI/CD (GitHub Actions)
+    participant Runner as Pytest Runner (test_golden_evals.py)
+    participant Agent as SalesAgent Orchestrator
+    participant Interceptor as ToolInterceptionCallbackHandler
+    participant Tool as Domain Tools / Fallback Tool
+    participant DuckDB as DuckDB (:memory:)
+    participant AssertEngine as Assertion Engine (assertions.py)
+
+    CI->>Runner: pytest tests/evals/test_golden_evals.py -v
+    Runner->>Runner: Carrega golden_dataset.json (10 casos de teste canônicos)
+    Runner->>DuckDB: Inicializa DuckDbSalesAdapter com dataset fixo tests/fixtures/eval_dataset.csv
+    loop Para cada Caso de Avaliação (Golden Record)
+        Runner->>Agent: ask(question, callbacks=[interceptor])
+        Agent->>Interceptor: on_tool_start(tool_name, tool_input)
+        Agent->>Tool: Executa agregação analítica no DuckDB
+        Tool->>DuckDB: Consulta vetorizada
+        DuckDB-->>Tool: Retorna dados agregados
+        Tool-->>Agent: Retorna payload JSON estruturado
+        Agent->>Interceptor: on_tool_end(raw_output)
+        Note over Interceptor: Decodifica e armazena actual_tool_name e parsed_tool_output
+        Runner->>Runner: 1. Assert interceptor.has_invocations == True
+        Runner->>Runner: 2. Assert interceptor.actual_tool_name == expected_tool (Anti-Prompt Drift)
+        Runner->>AssertEngine: 3. assert_metrics_match(expected_metrics, parsed_tool_output, abs_tol=0.01, rel_tol=1e-3)
+        alt Divergência Matemática Detectada
+            AssertEngine-->>Runner: AssertionError com Relatório Diagnóstico Sanitizado ([REDACTED_PATH])
+            Runner-->>CI: Falha no Job de CI (Bloqueia Merge do Pull Request)
+        else Métricas Coincidentes com Sucesso
+            AssertEngine-->>Runner: Assert OK (100% Determinismo Matemático)
+        end
+    end
+    Runner-->>CI: Suite de Evals Aprovada com Sucesso (< 60s)
+```
+
+---
+
 ## 🛠️ Catálogo de Ferramentas de Domínio (Domain Tools)
 
 | Ferramenta | Identificador | Descrição de Negócio |
@@ -223,6 +264,9 @@ sequenceDiagram
 
 ```text
 challenge_ai_engineer/
+├── .github/
+│   └── workflows/
+│       └── evals.yml                  # Quality Gate CI/CD: Execução de Golden Evals (timeout: 10m)
 ├── auth-service/                  # MICROSSERVIÇO DE AUTENTICAÇÃO INDEPENDENTE
 │   ├── Dockerfile                 # Container não-root na porta 8001
 │   ├── app.py                     # FastAPI App: POST /auth/login e GET /auth/public-key
@@ -231,11 +275,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R009)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T009)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S009)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST009)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q009)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R010)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T010)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S010)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST010)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q010)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)
@@ -269,7 +313,14 @@ challenge_ai_engineer/
 │           ├── session_factory.py # 12-Factor Provider Resolver
 │           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP)
 ├── tests/
-│   ├── unit/                      # Testes unitários (domínio, criptografia RS256, security guard)
+│   ├── evals/                     # FRAMEWORK DE GOLDEN EVALS DETERMINÍSTICOS (T010 / R010)
+│   │   ├── golden_dataset.json    # Dataset de benchmark canônico com ground-truth metrics
+│   │   ├── eval_models.py         # Modelos Pydantic GoldenEvalRecord e validação de schema
+│   │   ├── interceptor.py         # Callback handler para interceptação de tool outputs
+│   │   ├── assertions.py          # Motor determinístico de asserção com tolerância de float
+│   │   └── test_golden_evals.py   # Pytest Runner automatizado com retry exponencial
+│   ├── fixtures/                  # eval_dataset.csv (base isolada e hermética para benchmarking)
+│   ├── unit/                      # Testes unitários (domínio, criptografia, evals, guardrails)
 │   └── integration/               # Testes de integração End-to-End, multi-pod e fluxo JWT completo
 ├── .env.example                   # Modelo de variáveis de ambiente
 ├── docker-compose.yml             # Orquestração multi-container (auth-service, sales-agent, redis)
@@ -426,11 +477,17 @@ kubectl get svc
 
 ## 🧪 Executando os Testes
 
-O repositório possui **276 testes automatizados** cobrindo todas as camadas de domínio, casos de uso, adaptadores e fluxos de integração:
+O repositório possui **303 testes automatizados** cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração e suite de Golden Evals:
 
 ```bash
 # Executa a suíte completa de testes
 python -m pytest
+
+# Executa a suíte de Avaliações Determinísticas (Golden Evals)
+python -m pytest tests/evals/test_golden_evals.py -v
+
+# Executa os testes unitários do framework de Golden Evals (offline sem chave de LLM)
+python -m pytest tests/unit/test_eval_models.py tests/unit/test_eval_interceptor.py tests/unit/test_eval_assertions.py tests/unit/test_golden_evals_runner.py -v
 
 # Executa apenas os testes unitários de domínio e autenticação
 python -m pytest tests/unit/test_auth_domain.py tests/unit/test_jwt_token_adapter.py tests/unit/test_jwt_security_guard.py -v
@@ -448,3 +505,4 @@ python -m pytest tests/integration/test_jwt_auth_e2e.py -v
 - **Mitigação de Timing Attacks (CWE-208):** Comparação em tempo constante via `hmac.compare_digest()` para todas as verificações de credenciais de login.
 - **Prevenção de Injeção SQL & AST Guardrails:** A ferramenta `secured_sql_query` analisa consultas estruturalmente via AST (`sqlglot`) no dialeto DuckDB, bloqueando comandos mutacionais em qualquer profundidade e isolando literais de texto.
 - **Sanitização de Respostas & Mínimo Privilégio:** Contêineres executando com usuário não-root (`appuser`, UID 1000), respostas de erro uniformes sem vazamento de stack traces e mascaramento de caminhos do servidor `[REDACTED_PATH]`.
+- **Blindagem contra Alucinação Matemática e Prompt Drift (OWASP LLM04, LLM06 / T010):** Interceptação estrita de saídas estruturadas em `tests/evals/` validando 100% de exatidão numérica contra o dataset fixo hermético `eval_dataset.csv` sobre DuckDB em memória (`:memory:`), com sanitização automática de caminhos locais (`[REDACTED_PATH]`) e retentativa exponencial contra instabilidades transitórias de API.

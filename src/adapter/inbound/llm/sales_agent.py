@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Sequence
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, ToolException
 
 logger = logging.getLogger(__name__)
@@ -96,19 +97,29 @@ class SalesAgent:
             system_prompt=system_prompt,
         )
 
-    def ask(self, question: str, chat_history: Optional[Sequence[BaseMessage]] = None) -> str:
+    def ask(
+        self,
+        question: str,
+        chat_history: Optional[Sequence[BaseMessage]] = None,
+        callbacks: Optional[Sequence[Any]] = None,
+    ) -> str:
         """Executes the agent on the given question and returns the answer.
         
         Args:
             question: The user input query.
             chat_history: Optional external conversational history (e.g. from SessionStorePort).
+            callbacks: Optional LangChain callback handlers (e.g. for deterministic evaluation interception).
         """
         logger.info("Agent received user query: '%s'", question)
         history = list(chat_history) if chat_history is not None else self._chat_history
         messages = history + [HumanMessage(content=question)]
         
+        config: RunnableConfig = {"recursion_limit": 8}
+        if callbacks:
+            config["callbacks"] = list(callbacks)
+
         try:
-            result = self._executor.invoke({"messages": messages}, config={"recursion_limit": 8})
+            result = self._executor.invoke({"messages": messages}, config=config)
             output = str(result["messages"][-1].content)
         except Exception as e:
             logger.error("Agent execution failed or retry ceiling exceeded: %s", e, exc_info=True)

@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R010-golden-evals-deterministic.md](../business-requirements/R010-golden-evals-deterministic.md)
+- **Test Coverage:** [TEST010-golden-evals-deterministic.md](../tests/TEST010-golden-evals-deterministic.md)
+- **Security Audit:** [S010-golden-evals-deterministic.md](../security/S010-golden-evals-deterministic.md)
 
 ## Technical Goal
 
@@ -56,22 +58,22 @@ as a mandatory quality gate.
 
 ### 🔵 Phase 1 — Foundation (Dataset and Schema)
 
-- [ ] Task 001 - [Config]: Create the `golden_dataset.json` benchmark dataset (Depends On: —)
-- [ ] Task 002 - [Domain-Model]: Create `GoldenEvalRecord` validation models (Depends On: —)
+- [COMPLETED] Task 001 - [Config]: Create the `golden_dataset.json` benchmark dataset (Depends On: —)
+- [COMPLETED] Task 002 - [Domain-Model]: Create `GoldenEvalRecord` validation models (Depends On: —)
 
 ### 🟡 Phase 2 — Execution Engine (Interceptor and Assertions)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 003 - [Test-Integration]: Implement Agent Interceptor to capture tool calls (Depends On: Task 002)
-- [ ] Task 004 - [Test-Integration]: Implement Deterministic Assertion Engine with float tolerance (Depends On: Task 002)
-- [ ] Task 005 - [Test-Integration]: Implement `test_golden_evals.py` test runner (Depends On: Task 003, Task 004)
+- [COMPLETED] Task 003 - [Test-Integration]: Implement Agent Interceptor to capture tool calls (Depends On: Task 002)
+- [COMPLETED] Task 004 - [Test-Integration]: Implement Deterministic Assertion Engine with float tolerance (Depends On: Task 002)
+- [COMPLETED] Task 005 - [Test-Integration]: Implement `test_golden_evals.py` test runner (Depends On: Task 003, Task 004)
 
 ### 🟢 Phase 3 — CI/CD Integration
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 006 - [Adapter-Infra]: Integrate Golden Evals into GitHub Actions workflow (Depends On: Task 005)
+- [COMPLETED] Task 006 - [Adapter-Infra]: Integrate Golden Evals into GitHub Actions workflow (Depends On: Task 005)
 
 ## Task Detailing (Summary Tasks)
 

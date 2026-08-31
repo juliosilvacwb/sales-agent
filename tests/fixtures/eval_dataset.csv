@@ -1,0 +1,6 @@
+product_id;local;date;planned_quantity;actual_quantity;planned_price;promotion_type;actual_price;service_level
+Prod_A;Whse_North;01/01/2023;100;120;50.0;Promo10;45.0;0.95
+Prod_A;Whse_South;15/01/2023;80;90;50.0;None;50.0;0.85
+Prod_B;Whse_North;10/02/2023;200;180;100.0;SummerSale;90.0;0.90
+Prod_B;Whse_South;20/02/2023;150;100;100.0;None;100.0;0.70
+Prod_C;Whse_North;05/03/2023;50;60;20.0;None;20.0;0.98

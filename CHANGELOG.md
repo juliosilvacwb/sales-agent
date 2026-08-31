@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-30
+
+### Added
+
+- **Avaliações Determinísticas Golden (Golden Evals) para IA Analítica (T010 / R010):**
+  - Implementação de framework automatizado de avaliação determinística para prevenção de alucinações matemáticas e *Prompt Drift* no Sales Data Analysis Agent.
+- **Dataset Canônico de Benchmark (`tests/evals/golden_dataset.json`):**
+  - Criação de suíte declarativa de benchmark com consultas analíticas canônicas cobrindo todas as 10 ferramentas de domínio e casos de uso ad-hoc.
+- **Modelos de Domínio e Validação de Evals (`tests/evals/eval_models.py`):**
+  - Schemas Pydantic `GoldenEvalRecord`, enumeração `GoldenEvalCategory` e função utilitária `load_golden_dataset`.
+- **Interceptador de Ferramentas LangChain (`tests/evals/interceptor.py`):**
+  - Callback handler `ToolInterceptionCallbackHandler` que captura metadados, payload JSON bruto e estruturado retornado pelas ferramentas antes da síntese do LLM.
+- **Motor de Asserção Determinística com Tolerância de Float (`tests/evals/assertions.py`):**
+  - Comparador recursivo com tolerâncias estritas (`abs_tol=0.01` e `rel_tol=1e-3`) e gerador de relatórios diagnósticos de erro formatados e sanitizados.
+- **Runner de Testes Pytest Parametrizado (`tests/evals/test_golden_evals.py`):**
+  - Runner automatizado com retry exponencial para erros transitórios de API do provedor LLM.
+- **Quality Gate de CI/CD no GitHub Actions (`.github/workflows/evals.yml`):**
+  - Pipeline de validação bloqueante executando `pytest tests/evals/test_golden_evals.py -v`.
+- **Testes Unitários da Suíte de Evals:**
+  - `tests/unit/test_eval_models.py`, `tests/unit/test_eval_interceptor.py`, `tests/unit/test_eval_assertions.py` e `tests/unit/test_golden_evals_runner.py`.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R010-golden-evals-deterministic.md`, `T010-golden-evals-deterministic.md`, `TEST010-golden-evals-deterministic.md`, `S010-golden-evals-deterministic.md`, `Q010-golden-evals-deterministic.md` e `PS010-golden-evals-deterministic.md`.
+
+### Security & Reliability
+
+- **Isolamento Hermético de Dados (S010-03 / CWE-200 / OWASP LLM06):** Execução estrita contra dataset fixo `tests/fixtures/eval_dataset.csv` sobre DuckDB em memória (`:memory:`), impedindo acesso a dados transacionais ou persistência em disco.
+- **Mitigação de Negação de Serviço e Esgotamento de Tokens (S010-01 / OWASP LLM04 / CWE-400):** Limite de retentativas (`max_retries=3`), backoff exponencial delimitado a 10s e fail-fast imediato em erros de autenticação (401, 403).
+- **Sanitização de Logs e Prevenção de Log Forging (S010-02 / CWE-209 / CWE-117):** Ofuscação de caminhos absolutos do host (`[REDACTED_PATH]`), supressão de CRLF e truncamento de payloads extensos em relatórios diagnósticos.
+- **Proteção de Segredos no Pipeline CI/CD (S010-05 / CWE-522):** Injeção de `OPENAI_API_KEY` restrita ao step de avaliação no GitHub Actions com timeout de 10 minutos.
+
 ## [1.7.0] - 2026-08-30
 
 ### Added
