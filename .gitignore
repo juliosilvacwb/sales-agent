@@ -50,3 +50,8 @@ htmlcov/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Cryptographic Keys & Secrets
+keys/
+*.pem
+*.key
