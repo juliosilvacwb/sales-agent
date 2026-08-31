@@ -242,14 +242,14 @@ def test_tool_tracking_callback_handler_domain_tool_detection():
     from uuid import uuid4
 
     handler = ToolTrackingCallbackHandler()
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     handler.on_tool_start(
         serialized={"name": "get_top_selling_product"},
         input_str="{}",
         run_id=uuid4(),
     )
-    assert handler.has_queried_data is True
+    assert handler.has_queried_data
 
 
 def test_tool_tracking_callback_handler_sql_query_on_tool_end():

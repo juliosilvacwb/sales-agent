@@ -40,11 +40,11 @@ def test_tool_tracking_callback_handler_flags_true_only_for_whitelisted_data_too
     # Non-data utility tool execution (e.g. calculator or formatter)
     handler.on_tool_start(serialized={"name": "calculator_tool"}, input_str="{}")
     handler.on_tool_end(output="42", name="calculator_tool")
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     # Data query tool execution from DATA_QUERY_TOOLS
     handler.on_tool_start(serialized={"name": "secured_sql_query"}, input_str="{}")
-    assert handler.has_queried_data is True
+    assert handler.has_queried_data
 
     handler_end = ToolTrackingCallbackHandler()
     handler_end.on_tool_end(output="Product_0001", name="get_top_selling_product")
