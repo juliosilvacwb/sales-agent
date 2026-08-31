@@ -50,3 +50,7 @@ htmlcov/
 # OS files
 .DS_Store
 Thumbs.db
+
+keys/
+keys/private_key.pem
+keys/public_key.pem
