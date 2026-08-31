@@ -522,6 +522,18 @@ Aplique todos os manifestos de infraestrutura (ConfigMap, Deployments e Services
 kubectl apply -f k8s/
 ```
 
+#### 🔄 Atualização da Imagem e Rolling Restart (Deploy Contínuo)
+
+Sempre que gerar uma nova versão da imagem Docker e desejar forçar a atualização imediata dos pods sem indisponibilidade (*zero downtime*):
+
+```bash
+# 1. Forçar o Kubernetes a atualizar os pods com a nova imagem
+kubectl rollout restart deployment sales-agent-deployment
+
+# 2. Monitorar a substituição dos pods em tempo real
+kubectl get pods -l app=sales-agent -w
+```
+
 ---
 
 ### Passo 5: Verificar o Status dos Pods e Serviços
