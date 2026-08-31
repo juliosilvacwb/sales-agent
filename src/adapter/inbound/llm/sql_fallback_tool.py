@@ -2,10 +2,10 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 from pydantic import BaseModel, Field
 
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, ToolException
 
 from src.application.port.inbound.sales_analysis_usecase import SalesAnalysisUseCase
 from src.application.port.outbound.sql_parser_port import SqlParserPort
@@ -14,6 +14,15 @@ from src.domain.exception.sql_validation_exceptions import SqlSyntaxError
 from src.adapter.outbound.parser.sqlglot_parser_adapter import SqlGlotParserAdapter
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_path_details(raw_error: str) -> str:
+    """Sanitizes error messages by replacing host file paths and directories with [REDACTED_PATH]."""
+    return re.sub(
+        r"([a-zA-Z]:[\\/][^\s:'\"]+|/[^\s:'\"]+|[A-Z]:\\[^\s:'\"]+|\\\\[^\s:'\"]+)",
+        "[REDACTED_PATH]",
+        raw_error,
+    )
 
 
 class SQLQueryInput(BaseModel):
@@ -52,6 +61,7 @@ class SecuredSQLQueryTool(BaseTool):
         "Qualquer instrução de mutação (DROP, UPDATE, DELETE, INSERT, etc.) será categoricamente rejeitada."
     )
     args_schema: Optional[Type[BaseModel]] = SQLQueryInput  # type: ignore
+    handle_tool_error: Optional[Union[bool, str, Callable[[ToolException], Any]]] = True
     use_case: Any = None
     sql_parser_port: Any = None
     validator: Any = None
@@ -79,15 +89,14 @@ class SecuredSQLQueryTool(BaseTool):
             parsed_statement = self.sql_parser_port.parse(cleaned_query)
         except SqlSyntaxError as e:
             logger.error("SQL Syntax Error: %s", e)
-            return (
+            raise ToolException(
                 f"Erro de Sintaxe: Não foi possível analisar a consulta SQL. "
                 f"Detalhe: {e.detail}. Por favor, corrija a sintaxe e tente novamente."
             )
         except Exception as e:
             logger.error("Unexpected error during parsing: %s", e)
-            raw_err = str(e)
-            sanitized_err = re.sub(r"([a-zA-Z]:[\\/][^\s:'\"]+|/[^\s:'\"]+|[A-Z]:\\[^\s:'\"]+)", "[REDACTED_PATH]", raw_err)
-            return f"Erro ao executar a consulta SQL: {sanitized_err}"
+            sanitized_err = _sanitize_path_details(str(e))
+            raise ToolException(f"Erro ao executar a consulta SQL: {sanitized_err}")
 
         validation_result = self.validator.validate(parsed_statement)
         if not validation_result.is_valid:
@@ -101,11 +110,11 @@ class SecuredSQLQueryTool(BaseTool):
                 offending_info = f"'{parsed_statement.root_node_type}'"
                 
             if offending_info:
-                return (
+                raise ToolException(
                     f"Erro de Segurança: A instrução {offending_info} é proibida. "
                     "Apenas consultas analíticas de leitura (SELECT/WITH) são permitidas."
                 )
-            return (
+            raise ToolException(
                 f"Erro de Segurança: Consulta rejeitada. "
                 f"Detalhe: {validation_result.violation_detail} "
                 "Apenas consultas analíticas de leitura (SELECT/WITH) são permitidas."
@@ -159,9 +168,8 @@ class SecuredSQLQueryTool(BaseTool):
             return json.dumps(results, indent=2, ensure_ascii=False, default=str)
         except Exception as e:
             logger.error("Error executing custom SQL query '%s': %s", cleaned_query, e, exc_info=True)
-            raw_err = str(e)
-            sanitized_err = re.sub(r"([a-zA-Z]:[\\/][^\s:'\"]+|/[^\s:'\"]+|[A-Z]:\\[^\s:'\"]+)", "[REDACTED_PATH]", raw_err)
-            return f"Erro ao executar a consulta SQL: {sanitized_err}"
+            sanitized_err = _sanitize_path_details(str(e))
+            raise ToolException(f"Erro ao executar a consulta SQL: {sanitized_err}")
 
 
 def create_sql_fallback_tool(

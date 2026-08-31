@@ -237,3 +237,53 @@ def test_tool_calculate_price_elasticity(mock_sales_usecase):
     mock_sales_usecase.calculate_price_elasticity.assert_called_with(product_id="PROD_01")
     assert "-1.5" in str(result_prod)
 
+
+def test_tool_get_total_sales_in_period_raises_tool_exception(mock_sales_usecase):
+    """Test that domain tool raises ToolException when date format is invalid."""
+    from langchain_core.tools import StructuredTool, ToolException
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+    tool = tools["get_total_sales_in_period"]
+    
+    assert isinstance(tool, StructuredTool) and tool.func is not None
+    with pytest.raises(ToolException) as exc_info:
+        tool.func(start_date="invalid-date", end_date="2023-01-31")
+
+    assert "Erro de validação de data" in str(exc_info.value)
+    mock_sales_usecase.get_total_sales_in_period.assert_not_called()
+
+
+def test_domain_tools_handle_tool_error_configured(mock_sales_usecase):
+    """Test that all 10 domain tools created by factory have handle_tool_error = True (AC01)."""
+    tools = create_domain_tools(mock_sales_usecase)
+    assert len(tools) == 10
+    for tool in tools:
+        assert tool.handle_tool_error is not None
+        assert tool.handle_tool_error is True or callable(tool.handle_tool_error)
+
+
+def test_tool_get_total_sales_in_period_valid_date_formats(mock_sales_usecase):
+    """Test that valid Brazilian (DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY) and ISO formats parse correctly."""
+    mock_sales_usecase.reset_mock()
+    tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
+
+    # Test ISO format
+    tools["get_total_sales_in_period"].invoke({"start_date": "2023-01-01", "end_date": "2023-01-31"})
+    mock_sales_usecase.get_total_sales_in_period.assert_called_with(
+        start_date=date(2023, 1, 1), end_date=date(2023, 1, 31)
+    )
+
+    # Test Brazilian slash format
+    mock_sales_usecase.reset_mock()
+    tools["get_total_sales_in_period"].invoke({"start_date": "15/01/2023", "end_date": "31/12/2023"})
+    mock_sales_usecase.get_total_sales_in_period.assert_called_with(
+        start_date=date(2023, 1, 15), end_date=date(2023, 12, 31)
+    )
+
+    # Test Brazilian dot and dash format
+    mock_sales_usecase.reset_mock()
+    tools["get_total_sales_in_period"].invoke({"start_date": "01.05.2023", "end_date": "31-05-2023"})
+    mock_sales_usecase.get_total_sales_in_period.assert_called_with(
+        start_date=date(2023, 5, 1), end_date=date(2023, 5, 31)
+    )
+
+

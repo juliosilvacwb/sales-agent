@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-30
+
+### Added
+
+- **Autocorreção Agêntica e Resiliência a Erros (T009 / R009):** Implementação de mecanismo de autocorreção em tempo real utilizando exceções nativas `ToolException` do LangChain no Inbound LLM Adapter.
+- **Sinalização de Erro com `ToolException` (`src/adapter/inbound/llm/`):**
+  - Refatoração da `SecuredSQLQueryTool` para lançar `ToolException` estruturado em erros de sintaxe SQL, violações de segurança e falhas de execução no DuckDB (ex: colunas inexistentes ou alucinadas).
+  - Refatoração das 10 ferramentas de domínio em `domain_tools.py` (`@tool(handle_tool_error=True)`) com lançamento de `ToolException` em erros de validação e formatação de datas.
+- **Handler de Telemetria e Observabilidade (`src/adapter/inbound/llm/sales_agent.py`):**
+  - Implementação do handler `_handle_tool_error(error: ToolException) -> str` que intercepta falhas de execução, emite logs de warning com o marcador de telemetria `[AGENT_SELF_CORRECTION]` e formata o feedback de diagnóstico para re-injeção no contexto do LLM.
+- **Suíte de Testes Automatizados de Autocorreção:**
+  - Criação de `tests/integration/test_agent_self_correction.py` com simulador determinístico `FakeToolCallingChatModel` validando: (1) reparo de coluna SQL alucinada no mesmo turno; (2) autocorreção de formato de data; (3) esgotamento de retries com entrega de fallback executivo; (4) emissão de logs `[AGENT_SELF_CORRECTION]`.
+  - Novos testes unitários em `tests/unit/test_sales_agent.py`, `tests/unit/test_sql_fallback_tool.py` e `tests/unit/test_domain_tools.py`.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R009-agentic-self-correction.md`, `T009-agentic-self-correction.md`, `TEST009-agentic-self-correction.md`, `S009-agentic-self-correction.md`, `Q009-agentic-self-correction.md` e `PS009-agentic-self-correction.md`.
+
+### Changed
+
+- **Diretrizes de Autocorreção no `SYSTEM_PROMPT` (`src/adapter/inbound/llm/sales_agent.py`):**
+  - Inclusão da seção `DIRETRIZES DE AUTOCORREÇÃO E RECUPERAÇÃO DE ERROS`, instruindo o LLM sobre raciocínio de autocorreção, proibição de expor dados técnicos (Regra BR01) e fallback de contingência.
+- **Configuração de Orçamento de Retries no `SalesAgent`:**
+  - Invocação `self._executor.invoke` configurada com `config={"recursion_limit": 8}`, limitando o loop a no máximo 3 tentativas de autocorreção por pergunta antes do fallback.
+  - Bloco de contingência `try...except` assegura retorno da constante padronizada `FALLBACK_ERROR_MESSAGE`.
+
+### Security & Reliability
+
+- **Zero Exposição de Erros Técnicos (Regra BR01 / CWE-209):** Blindagem total da resposta final ao usuário, impedindo vazamento de stack traces, termos como `Traceback`, `DuckDB` ou `Catalog Error`.
+- **Sanitização de Caminhos do Host (CWE-209 / CWE-532 / OWASP LLM06):** Criação de `_sanitize_path_details` mascarando caminhos de diretórios locais (POSIX, Windows e UNC) por `[REDACTED_PATH]`.
+- **Sanitização de Logs e Prevenção de Log Forging (CWE-117):** Higienização de quebras de linha (`\r`, `\n`, `\t`) no handler `_handle_tool_error` antes da emissão de logs de telemetria.
+- **Proteção contra Negação de Serviço e Esgotamento de Tokens (OWASP LLM04 / CWE-400):** Teto determinístico de recursão impedindo loops infinitos de autocorreção.
+- **Defesa contra Injeção Indireta de Prompt (OWASP LLM01):** Instruções explícitas no `SYSTEM_PROMPT` para tratar mensagens de erro estritamente como sinais técnicos de esquema/validação, nunca executando instruções embutidas em erros.
+
 ## [1.6.0] - 2026-08-30
 
 ### Added

@@ -5,7 +5,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from typing import List, Optional
 
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import BaseTool, ToolException, tool
 
 from src.application.port.inbound.sales_analysis_usecase import SalesAnalysisUseCase
 
@@ -94,7 +94,7 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
             parsed_start = _parse_date(start_date)
             parsed_end = _parse_date(end_date)
         except ValueError as e:
-            return f"Erro de validação de data: {str(e)}"
+            raise ToolException(f"Erro de validação de data: {str(e)}")
 
         result = sales_use_case.get_total_sales_in_period(
             start_date=parsed_start, end_date=parsed_end
@@ -154,7 +154,7 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
         result = sales_use_case.calculate_price_elasticity(product_id=product_id)
         return _to_json_str(result)
 
-    return [
+    tools = [
         get_top_selling_product,
         get_top_locations_by_volume,
         get_total_sales_in_period,
@@ -166,3 +166,6 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
         identify_sales_seasonality,
         calculate_price_elasticity,
     ]
+    for t in tools:
+        t.handle_tool_error = True
+    return tools

@@ -24,12 +24,13 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 7. **Observabilidade & Descoberta:** Emissão automática de logs com a tag `[MISSING_TOOL]` quando o fallback SQL é acionado, facilitando a identificação contínua de novas métricas a serem promovidas a Domain Tools.
 8. **Segurança Corporativa & AST Guardrails:** Bloqueio determinístico de comandos DML/DDL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ATTACH`, `COPY`, etc.) e funções do sistema de arquivos (`read_csv`, `read_text`, `glob`) via inspeção recursiva de AST com `sqlglot`, isolamento de acesso a arquivos externos no DuckDB (`enable_external_access = false`), sanitização contra injeção de HTML/JS no frontend (`DOMPurify`), e redação de paths internos `[REDACTED_PATH]`.
 9. **Escalabilidade Distribuída & Sessão Stateless (Redis + K3s):** Camada de computação 100% desacoplada de estado conversacional através da porta de saída `SessionStorePort` e `SessionFactory`, permitindo escalabilidade horizontal em Kubernetes/K3s com multi-réplicas sem perda de histórico conversacional entre pods ou durante rolling updates.
+10. **Autocorreção Agêntica e Resiliência a Erros (T009 / R009):** Mecanismo autônomo baseado em `ToolException` nativo da LangChain. Falhas de consulta SQL (ex: colunas alucinadas, erros de sintaxe) e erros de validação de datas são interceptados e re-injetados no contexto do LLM com telemetria `[AGENT_SELF_CORRECTION]`, permitindo que o modelo repare seus próprios parâmetros em um único turno com teto estrito de 3 tentativas (`recursion_limit: 8`), garantindo zero exposição de erros técnicos ao usuário final (Regra BR01).
 
 ---
 
 ## 🏛️ Arquitetura do Sistema
 
-O projeto adota o padrão **Hexagonal (Ports & Adapters)** com **Autenticação Assimétrica Zero Trust**, **Pushdown Analítico OLAP** e **Sessão Distribuída Stateless**:
+O projeto adota o padrão **Hexagonal (Ports & Adapters)** com **Autenticação Assimétrica Zero Trust**, **Pushdown Analítico OLAP**, **Sessão Distribuída Stateless** e **Autocorreção Agêntica**:
 
 ```mermaid
 graph TB
@@ -49,7 +50,7 @@ graph TB
     subgraph Inbound Adapters [Adapters - Entrada Sales Agent]
         FastAPI[FastAPI / REST Controller]
         SecurityGuard[JwtSecurityGuard - Bearer Validator]
-        Agent[SalesAgent Orchestrator]
+        Agent[SalesAgent Orchestrator - Self-Correction Loop]
         DomainTools[10x LangChain Domain Tools]
         FallbackTool[Secured SQL Fallback Tool]
     end
@@ -172,6 +173,34 @@ sequenceDiagram
 
 ---
 
+### 🔁 Fluxo de Autocorreção Agêntica e Resiliência a Erros (Self-Correction Loop)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Usuário / Cliente
+    participant Agent as SalesAgent (LangChain Orchestrator)
+    participant Tool as SecuredSQLQueryTool / Domain Tools
+    participant DuckDB as DuckDB Engine
+
+    User->>Agent: "Qual é o faturamento total do produto Product_0001?"
+    Note over Agent: Tentativa 1 (Geração inicial da query)
+    Agent->>Tool: secured_sql_query("SELECT SUM(total_price) FROM sales_data WHERE product_id = 'Product_0001'")
+    Tool->>DuckDB: Executa SQL no banco
+    DuckDB-->>Tool: Erro: Column 'total_price' does not exist
+    Tool-->>Agent: raise ToolException("Erro ao executar: Coluna 'total_price' não encontrada em [REDACTED_PATH]")
+    Note over Agent: Handler _handle_tool_error emite log [AGENT_SELF_CORRECTION]
+    Note over Agent: Raciocínio autônomo re-injeta erro: formula correta é SUM(actual_quantity * actual_price)
+    Note over Agent: Tentativa 2 (Autocorreção no mesmo turno)
+    Agent->>Tool: secured_sql_query("SELECT SUM(actual_quantity * actual_price) AS faturamento FROM sales_data WHERE product_id = 'Product_0001'")
+    Tool->>DuckDB: Executa SQL corrigido
+    DuckDB-->>Tool: Retorna faturamento calculado
+    Tool-->>Agent: Retorna dados analíticos em JSON
+    Agent-->>User: "O faturamento total do produto Product_0001 foi de R$ 10.000,00." (Zero erro técnico exposto)
+```
+
+---
+
 ## 🛠️ Catálogo de Ferramentas de Domínio (Domain Tools)
 
 | Ferramenta | Identificador | Descrição de Negócio |
@@ -186,7 +215,7 @@ sequenceDiagram
 | **Desconto Médio** | `calculate_average_discount` | Avalia a margem de desconto médio aplicado frente ao planejado. |
 | **Sazonalidade de Vendas** | `identify_sales_seasonality` | Aponta meses de pico, vale e curva de sazonalidade temporal. |
 | **Elasticidade de Preço** | `calculate_price_elasticity` | Calcula a elasticidade-preço da demanda por produto ou ranking macro de todo o catálogo (mitigando o Paradoxo de Simpson). |
-| **Fallback SQL Seguro** | `secured_sql_query` | Executa consultas analíticas `SELECT` ad-hoc com validação AST via `sqlglot` e log `[MISSING_TOOL]`. |
+| **Fallback SQL Seguro** | `secured_sql_query` | Executa consultas analíticas `SELECT` ad-hoc com validação AST via `sqlglot`, autocorreção e log `[MISSING_TOOL]`. |
 
 ---
 
@@ -202,11 +231,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R008)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T008)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S008)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST008)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q008)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R009)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T009)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S009)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST009)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q009)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)

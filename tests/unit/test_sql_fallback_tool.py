@@ -138,3 +138,61 @@ def test_secured_sql_tool_malformed_sql(mock_sales_usecase):
     mock_sales_usecase.execute_custom_query.assert_not_called()
     assert "Erro de Sintaxe" in result
     assert "corrija a sintaxe" in result
+
+
+def test_secured_sql_tool_raises_tool_exception_on_syntax_error(mock_sales_usecase):
+    """Test that _run raises ToolException on syntax errors (AC01)."""
+    from langchain_core.tools import ToolException
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    with pytest.raises(ToolException) as exc_info:
+        tool._run("SELECT * FROM (SELECT local FROM sales_data")
+    assert "Erro de Sintaxe" in str(exc_info.value)
+
+
+def test_secured_sql_tool_raises_tool_exception_on_security_violation(mock_sales_usecase):
+    """Test that _run raises ToolException on security violations (AC01)."""
+    from langchain_core.tools import ToolException
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    with pytest.raises(ToolException) as exc_info:
+        tool._run("DROP TABLE sales_data")
+    assert "Erro de Segurança" in str(exc_info.value)
+
+
+def test_secured_sql_tool_raises_tool_exception_on_execution_error(mock_sales_usecase):
+    """Test that _run raises ToolException on database query errors with sanitization (AC01, BR04)."""
+    from langchain_core.tools import ToolException
+    mock_sales_usecase.execute_custom_query.side_effect = RuntimeError(
+        "Binder Error: Column 'total_revenue' does not exist in path c:/Code/challenge_ai_engineer/data.parquet"
+    )
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    with pytest.raises(ToolException) as exc_info:
+        tool._run("SELECT SUM(total_revenue) FROM sales_data")
+    
+    assert "Erro ao executar a consulta SQL" in str(exc_info.value)
+    assert "[REDACTED_PATH]" in str(exc_info.value)
+    assert "c:/Code/challenge_ai_engineer" not in str(exc_info.value)
+
+
+def test_secured_sql_tool_handle_tool_error_attribute(mock_sales_usecase):
+    """Test that SecuredSQLQueryTool defines handle_tool_error = True."""
+    tool = create_sql_fallback_tool(mock_sales_usecase)
+    assert tool.handle_tool_error is not None
+    assert tool.handle_tool_error is True or callable(tool.handle_tool_error)
+
+
+def test_secured_sql_tool_sanitizes_posix_and_windows_paths(mock_sales_usecase):
+    """Test that _run sanitizes POSIX, Windows, and UNC file paths (S009-02)."""
+    from langchain_core.tools import ToolException
+    from src.adapter.inbound.llm.sql_fallback_tool import _sanitize_path_details
+
+    err_posix = "IO Error: Failed to open file /var/data/sales/dataset.parquet: Permission denied"
+    sanitized_posix = _sanitize_path_details(err_posix)
+    assert "/var/data/sales/dataset.parquet" not in sanitized_posix
+    assert "[REDACTED_PATH]" in sanitized_posix
+
+    err_win = "IO Error: Cannot access D:\\CompanyData\\Sales\\dataset.parquet"
+    sanitized_win = _sanitize_path_details(err_win)
+    assert "D:\\CompanyData\\Sales\\dataset.parquet" not in sanitized_win
+    assert "[REDACTED_PATH]" in sanitized_win
+
+

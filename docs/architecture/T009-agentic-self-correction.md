@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R009-agentic-self-correction.md](../business-requirements/R009-agentic-self-correction.md)
+- **Test Coverage:** [TEST009-agentic-self-correction.md](../tests/TEST009-agentic-self-correction.md)
+- **Security Audit:** [S009-agentic-self-correction.md](../security/S009-agentic-self-correction.md)
 
 ## Technical Goal
 
@@ -44,22 +46,22 @@ Refactor the Sales Data Analysis Agent to implement a native self-correction loo
 
 ### 🔵 Phase 1 — Agent Foundation (Prompts and Settings)
 
-- [ ] Task 001 - [Config]: Update `SYSTEM_PROMPT` with self-correction instructions (Depends On: —)
+- [COMPLETED] Task 001 - [Config]: Update `SYSTEM_PROMPT` with self-correction instructions (Depends On: —)
 
 ### 🟡 Phase 2 — Tool Hardening (Exceptions and Handlers)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 002 - [Adapter-Web]: Refactor `SecuredSQLQueryTool` to raise sanitized `ToolException` (Depends On: Task 001)
-- [ ] Task 003 - [Adapter-Web]: Refactor `domain_tools.py` to raise `ToolException` on validation errors (Depends On: Task 001)
-- [ ] Task 004 - [Adapter-Web]: Implement `_handle_error` callback for Telemetry (Depends On: Task 001)
+- [COMPLETED] Task 002 - [Adapter-Web]: Refactor `SecuredSQLQueryTool` to raise sanitized `ToolException` (Depends On: Task 001)
+- [COMPLETED] Task 003 - [Adapter-Web]: Refactor `domain_tools.py` to raise `ToolException` on validation errors (Depends On: Task 001)
+- [COMPLETED] Task 004 - [Adapter-Web]: Implement `_handle_error` callback for Telemetry (Depends On: Task 001)
 
 ### 🟢 Phase 3 — Orchestration and Validation (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 005 - [UseCase]: Configure `SalesAgent` executor with error handlers and retry ceilings (Depends On: Task 002, Task 003, Task 004)
-- [ ] Task 006 - [Test-Integration]: Implement self-correction E2E tests (Depends On: Task 005)
+- [COMPLETED] Task 005 - [UseCase]: Configure `SalesAgent` executor with error handlers and retry ceilings (Depends On: Task 002, Task 003, Task 004)
+- [COMPLETED] Task 006 - [Test-Integration]: Implement self-correction E2E tests (Depends On: Task 005)
 
 ## Task Detailing (Summary Tasks)
 
