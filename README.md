@@ -30,6 +30,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 13. **Tipagem Estática Estrita & Qualidade de Código (T012 / R012 / S012 / TEST012):** Transição de tipagem dinâmica para MyPy em modo estrito (`strict = true`) em 100% da base de código (`src/`), eliminando erros de runtime (`TypeError`, `NoneType` dereferences) e impondo padronização determinística com o linter/formatador **Ruff** (sub-1s). Configuração unificada no `pyproject.toml`, segregação de dependências de desenvolvimento (`requirements-dev.txt`) para hardening de supply chain em contêineres e Quality Gate bloqueante no GitHub Actions (`.github/workflows/ci-cd.yml`) sob o princípio do menor privilégio (`permissions: contents: read`).
 14. **Rastreamento de Grounding e Selo de Dados Verificados (T013 / R013 / S013 / TEST013):** Interceptação de ferramentas em tempo real via LangChain `BaseCallbackHandler` (`ToolTrackingCallbackHandler`) com isolamento estrito por turno conversacional (`request-scoped`). Enriquecimento automático do `ChatResponseDTO` com a flag booleana `data_queried: true` quando ferramentas analíticas de domínio ou fallback SQL são executadas, e renderização dinâmica do selo de confiança acessível `✅ Dados Verificados` na interface Web Chat com defesa contra UI spoofing e sanitização DOMPurify.
 15. **Máquina de Estados e Orquestração Avançada com LangGraph (T014 / R014 / S014 / TEST014):** Migração do motor cognitivo do agente de um executor linear (`AgentExecutor`) para uma máquina de estados direcionada determinística (`StateGraph` e `MessagesState`). Topologia desacoplada em nós `call_model` e `tools` (`ToolNode`), roteamento condicional determinístico (`should_continue`) e aresta cíclica incondicional para autorrecuperação autônoma (`tools -> agent`), com teto estrito de recursão (`recursion_limit: 10`), captura graciosa de `GraphRecursionError` e inspeção de estado blindada contra a whitelist `DATA_QUERY_TOOLS` com 100% de isolamento no adaptador de entrada.
+16. **Armazenamento Dinâmico e Consulta Remota Direta S3 com Zero-Copy (T015 / R015 / S015 / TEST015 / Q015):** Suporte nativo a streaming analítico diretamente contra URIs remotas `s3://` através da extensão `httpfs` do DuckDB. Criação de `VIEW sales_data` virtual sem materialização em disco ou pré-carregamento em RAM (Zero-Copy), garantindo consumo de memória *bounded* (sub-512MB) e visibilidade em tempo real de atualizações externas no dataset (*instant data freshness*) sem necessidade de reinicialização dos pods.
 
 ---
 
@@ -90,6 +91,11 @@ graph TB
         JwtVerifierAdapter[JwtRs256TokenAdapter - Public Key Verifier]
     end
 
+    subgraph Storage [Camada de Armazenamento]
+        S3Storage[AWS S3 Remote Storage - s3://... / httpfs Extension]
+        LocalCSV[Local CSV Fallback - /app/dataset/sales.csv]
+    end
+
     subgraph Domain Core [Domínio Puro]
         Models[Domain Models: SaleRecord, MetricResult, Aggregations, SessionContext]
         AuthModels[Auth Models: TokenClaims, AuthCredentials, TokenResponse]
@@ -97,7 +103,7 @@ graph TB
         BasicMetrics[BasicMetricsService]
         AdvancedMetrics[AdvancedMetricsService]
         SqlValidator[SqlSecurityValidator - Pure Domain Security Rules]
-        AuthExceptions[Domain Exceptions: AuthenticationError, InvalidCredentialsError, InvalidTokenError]
+        AuthExceptions[Domain Exceptions: AuthenticationError, InvalidCredentialsError, InvalidTokenError, S3ConnectionError]
     end
 
     WebClient -->|POST /auth/login| AuthFastAPI
@@ -134,9 +140,45 @@ graph TB
     UseCasePort --> AppService
     AppService --> DataPort
     DataPort -->|Pushdown SQL| DuckDBAdapter
+    DuckDBAdapter -->|DATASET_PATH starts with s3://| S3Storage
+    DuckDBAdapter -->|DATASET_PATH local file| LocalCSV
     AppService --> BasicMetrics
     AppService --> AdvancedMetrics
     Agent --> LLMFactory
+```
+
+---
+
+### ☁️ Fluxo de Streaming Remoto S3 Zero-Copy (DuckDB `httpfs`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Usuário / Cliente
+    participant Sales as Sales Agent Web (:8000)
+    participant Adapter as DuckDbSalesAdapter
+    participant DuckDB as DuckDB Engine (In-Process)
+    participant S3 as AWS S3 Object Storage (s3://...)
+
+    Note over Sales,S3: 1. Fase de Inicialização no Startup (DATASET_PATH="s3://...")
+    Sales->>Adapter: __init__(dataset_path="s3://bucket/sales.csv")
+    Adapter->>Adapter: _validate_s3_uri() (Validação sintática e anti-traversal)
+    Adapter->>DuckDB: INSTALL httpfs; LOAD httpfs;
+    Adapter->>Adapter: _configure_s3_credentials() (Injeta AWS Secrets com escape SQL)
+    Adapter->>DuckDB: SET s3_region, s3_access_key_id, s3_secret_access_key
+    Adapter->>DuckDB: CREATE VIEW sales_data AS SELECT ... FROM read_csv_auto('s3://...', delim=';')
+    DuckDB-->>Adapter: VIEW 'sales_data' criada com sucesso (Zero dados em RAM)
+
+    Note over User,S3: 2. Fase de Consulta Analítica com Pushdown
+    User->>Sales: POST /chat ("Qual é o produto mais vendido?")
+    Sales->>Adapter: aggregate_top_selling_product()
+    Adapter->>DuckDB: SELECT product_id, SUM(actual_quantity) FROM sales_data GROUP BY 1 ORDER BY 2 DESC LIMIT 1
+    DuckDB->>S3: HTTP GET Byte-Range Request (Lê apenas colunas/blocos necessários)
+    S3-->>DuckDB: Retorna streaming de bytes compactado
+    DuckDB->>DuckDB: Agregação colunar vetorizada em C++
+    DuckDB-->>Adapter: ProductAggregation(product_id="Product_0001", total_quantity=15000.0)
+    Adapter-->>Sales: Retorna agregação formatada de domínio
+    Sales-->>User: "O produto mais vendido é o Product_0001 com 15.000 unidades." (Consumo RAM < 512MB)
 ```
 
 ---
@@ -369,11 +411,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R014)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T014)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S014)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST014)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q014)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R015)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T015)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S015)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST015)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q015)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)
@@ -385,7 +427,7 @@ challenge_ai_engineer/
 │   └── secrets.example.yaml       # Template declarativo de Secrets para Kubernetes
 ├── src/
 │   ├── domain/                    # DOMÍNIO PURO (Zero frameworks)
-│   │   ├── exception/             # auth_exceptions.py, session_exceptions.py, sql_validation_exceptions.py
+│   │   ├── exception/             # auth_exceptions.py, s3_exceptions.py, session_exceptions.py, sql_validation_exceptions.py
 │   │   ├── model/                 # auth_models.py (TokenClaims), aggregation_models.py, sql_validation.py
 │   │   └── service/               # credential_validator.py, basic_metrics_service.py, sql_security_validator.py
 │   ├── application/               # CASOS DE USO E CONTRATOS
@@ -406,7 +448,7 @@ challenge_ai_engineer/
 │           ├── parser/            # sqlglot_parser_adapter.py (DuckDB AST Parser)
 │           ├── redis/             # redis_session_adapter.py (Cluster Redis)
 │           ├── session_factory.py # 12-Factor Provider Resolver
-│           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP)
+│           └── persistence/       # duckdb_sales_adapter.py (DuckDB Pushdown OLAP / S3 httpfs)
 ├── tests/
 │   ├── evals/                     # FRAMEWORK DE GOLDEN EVALS DETERMINÍSTICOS (T010 / R010)
 │   │   ├── golden_dataset.json    # Dataset de benchmark canônico com ground-truth metrics
@@ -415,8 +457,8 @@ challenge_ai_engineer/
 │   │   ├── assertions.py          # Motor determinístico de asserção com tolerância de float
 │   │   └── test_golden_evals.py   # Pytest Runner automatizado com retry exponencial
 │   ├── fixtures/                  # eval_dataset.csv (base isolada e hermética para benchmarking)
-│   ├── unit/                      # Testes unitários (domínio, criptografia, evals, guardrails)
-│   └── integration/               # Testes de integração End-to-End, multi-pod e fluxo JWT completo
+│   ├── unit/                      # Testes unitários (domínio, criptografia, evals, guardrails, S3)
+│   └── integration/               # Testes de integração End-to-End, multi-pod, fluxo JWT e S3 streaming
 ├── .env.example                   # Modelo de variáveis de ambiente
 ├── Dockerfile                     # Empacotamento Docker do Sales Agent
 ├── pyproject.toml                 # Configurações do Pytest, MyPy e Ruff
@@ -495,20 +537,25 @@ docker push juliosilvacwb/auth-service:latest
 Crie o Secret `sales-agent-secrets` contendo as credenciais e variáveis sensíveis necessárias para a inicialização dos pods:
 
 ```bash
-# Criação do Secret com as credenciais essenciais
+# Criação do Secret com as credenciais essenciais (incluindo AWS S3 para Zero-Copy Streaming)
 kubectl create secret generic sales-agent-secrets \
   --from-literal=openai-api-key="sk-proj-sua-chave-api-openai-aqui" \
-  --from-literal=auth-password="sua-senha-admin-aqui"
+  --from-literal=auth-password="sua-senha-admin-aqui" \
+  --from-literal=aws-access-key-id="sua-chave-de-acesso-aws-aqui" \
+  --from-literal=aws-secret-access-key="sua-chave-secreta-aws-aqui"
 ```
 
 > [!TIP]
-> Caso utilize outro provedor de LLM (Anthropic ou Google Gemini) ou deseje injetar chaves RSA customizadas, passe os parâmetros adicionais correspondentes:
+> Caso utilize outro provedor de LLM (Anthropic ou Google Gemini), credenciais temporárias AWS STS (`aws-session-token`) ou deseje injetar chaves RSA customizadas, passe os parâmetros adicionais correspondentes:
 > ```bash
 > kubectl create secret generic sales-agent-secrets \
 >   --from-literal=openai-api-key="sk-..." \
 >   --from-literal=anthropic-api-key="sk-ant-..." \
 >   --from-literal=google-api-key="AIza..." \
->   --from-literal=auth-password="changeme"
+>   --from-literal=auth-password="changeme" \
+>   --from-literal=aws-access-key-id="AKIA..." \
+>   --from-literal=aws-secret-access-key="SECRET..." \
+>   --from-literal=aws-session-token="TOKEN..."
 > ```
 
 ---
@@ -636,7 +683,7 @@ python -m src.adapter.inbound.cli.main
 
 ## 🧪 Executando os Testes e Análise Estática
 
-O repositório possui **430+ testes automatizados** e pipelines rigorosos de análise estática e formatação cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração, suite de Golden Evals, tipagem estrita e orquestração de grafos LangGraph:
+O repositório possui **500+ testes automatizados** e pipelines rigorosos de análise estática e formatação cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração, streaming remoto S3, suite de Golden Evals, tipagem estrita e orquestração de grafos LangGraph:
 
 ```bash
 # Executa a checagem de estilo e formatação com Ruff
@@ -648,6 +695,9 @@ mypy src/
 
 # Executa a suíte completa de testes unitários e de integração
 python -m pytest
+
+# Executa os testes unitários de armazenamento dinâmico e streaming S3 (T015 / R015 / S015 / TEST015)
+python -m pytest tests/unit/test_s3_uri_detection.py tests/unit/test_s3_credential_config.py tests/unit/test_s3_graceful_degradation.py tests/unit/test_s3_external_access.py tests/unit/test_s3_backward_compatibility.py -v
 
 # Executa a suíte de orquestração com máquina de estados LangGraph (T014 / R014 / S014 / TEST014)
 python -m pytest tests/integration/test_sales_agent.py -v
@@ -692,4 +742,5 @@ python -m pytest tests/integration/test_auth_modal_ui_incident_b005.py -v
 - **Supply Chain Security & Hardening de CI/CD (OWASP CICD-SEC-01, CICD-SEC-03, CICD-SEC-05 / S012):** Segregação rigorosa de dependências de desenvolvimento em `requirements-dev.txt`, mantendo contêineres de produção enxutos e imunes à inclusão de compiladores ou linters desnecessários; erradicação de supressões cegas de tipagem em módulos de autenticação e criptografia (`jwt.*`, `cryptography.*`); aplicação de type narrowing defensivo nas fronteiras de adaptadores externos (`sql_fallback_tool.py`, `redis_session_adapter.py`); e imposição do princípio do menor privilégio (`permissions: contents: read`) no workflow do GitHub Actions.
 - **Grounding Factual, Fail-Closed Callback e Mitigação de UI Spoofing (OWASP LLM09 / S013 / CWE-1188 / CWE-79):** Interceptação estritamente fail-closed em `ToolTrackingCallbackHandler` exigindo correspondência explícita na whitelist `data_tools`, isolamento request-scoped prevenindo vazamento de estado entre turnos conversacionais (ADR-02), e defesa contra spoofing no frontend garantindo que selos forjados em Markdown sejam purgados via `DOMPurify` e inseridos unicamente pela propriedade tipada `data_queried === true`.
 - **Contenção de DoS e Proteção de Loops em Grafo (OWASP LLM04 / S014 / CWE-400 / CWE-835):** Imposição imutável de `recursion_limit: 10` na execução da máquina de estados LangGraph, captura graciosa de `GraphRecursionError` entregando `FALLBACK_ERROR_MESSAGE` sem crash de processo, sanitização de caminhos absolutos do host em manipuladores de erro de ferramentas (`[PATH_REDACTED]`), e higienização defensiva de tipos no histórico conversacional externo.
+- **Zero-Copy S3 Streaming, Sanitização de Credenciais e Proteção SSRF (OWASP A01, A03, A05, A09 / S015 / CWE-89 / CWE-209 / CWE-532 / CWE-918):** Sanitização e escape de aspas simples em comandos `SET` de credenciais DuckDB (CWE-89); higienização e ofuscação sistemática de cabeçalhos de autenticação AWS (`Authorization: AWS4-HMAC-SHA256`, `Signature=`, `Credential=`, tokens STS e Secret Keys) em logs operacionais (`_sanitize_s3_error` / CWE-209 / CWE-532); defesa em profundidade contra SSRF (CWE-918) com validação sintática estrita de URI S3 (`_validate_s3_uri`) contra path traversal (`..`), SSL obrigatório por padrão e bloqueio determinístico de funções arbitrárias de I/O na AST SQL via `SqlSecurityValidator`; e princípio do menor privilégio IAM (`s3:GetObject`, `s3:ListBucket`) via Kubernetes Secrets.
 

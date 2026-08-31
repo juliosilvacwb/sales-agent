@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-08-31
+
+### Added
+
+- **Armazenamento Dinâmico e Consulta Remota Direta S3 com Zero-Copy (T015 / R015):**
+  - Implementação de streaming analítico de dados diretamente contra URIs remotas AWS S3 (`s3://...`) via extensão nativa `httpfs` do DuckDB, viabilizando consultas OLAP sobre datasets de grande porte com consumo de memória *bounded* (sub-512MB RAM).
+- **Exceção de Domínio `S3ConnectionError` (`src/domain/exception/s3_exceptions.py`):**
+  - Criação de exceção pura de domínio com atributo opcional `status_code` (ex: 403, 404) para sinalização de falhas de conexão/autenticação S3 sem acoplamento a bibliotecas ou SDKs externos (Task 001).
+- **Autodetecção de URI e Streaming sob Demanda (`src/adapter/outbound/persistence/duckdb_sales_adapter.py`):**
+  - Autodetecção determinística do esquema `s3://` (case-insensitive) via `DATASET_PATH` (ADR-01).
+  - Instalação e carregamento dinâmico da extensão `httpfs` (`INSTALL httpfs; LOAD httpfs;`) apenas quando em modo S3 (ADR-02 / Task 003).
+  - Injeção segura de credenciais AWS (`_configure_s3_credentials`) via comandos `SET s3_region`, `SET s3_access_key_id`, `SET s3_secret_access_key`, `SET s3_session_token`, `SET s3_endpoint` e `SET s3_use_ssl` (ADR-05 / Task 004).
+  - Criação de `VIEW sales_data` virtual via `read_csv_auto('s3://...', delim=';', header=True)` com streaming de byte-ranges sob demanda e instant data freshness (ADR-03 / Task 005 / PRD04, PRD05).
+  - Degradação graciosa e fallback para schema canônico vazio em caso de falhas de rede, HTTP 403 Forbidden ou HTTP 404 Not Found (ADR-06 / BR05).
+- **Suítes de Testes Automatizados Unitários e de Integração:**
+  - Criação de suítes de testes unitários dedicadas: `tests/unit/test_s3_uri_detection.py`, `tests/unit/test_s3_credential_config.py`, `tests/unit/test_s3_graceful_degradation.py`, `tests/unit/test_s3_external_access.py` e `tests/unit/test_s3_backward_compatibility.py` (Tasks 010 a 014).
+  - Criação de suítes de testes de integração E2E: `tests/integration/test_s3_aggregations.py` e `tests/integration/test_s3_profiling.py` com skip condicional gracioso (`@pytest.mark.skipif`) na ausência de credenciais AWS (Tasks 015 e 016).
+- **Artefatos de Governança ADD:** Inclusão das especificações `R015-s3-dynamic-dataset-storage.md`, `T015-s3-dynamic-dataset-storage.md`, `TEST015-s3-dynamic-dataset-storage.md`, `S015-s3-dynamic-dataset-storage.md`, `Q015-s3-dynamic-dataset-storage.md` e `PS015-s3-dynamic-dataset-storage.md`.
+
+### Changed
+
+- **Controle Condicional de Acesso Externo no DuckDB (ADR-04 / Task 006):**
+  - `SET enable_external_access = false;` executado exclusivamente em modo local para blindagem offline; em modo S3, o acesso externo permanece habilitado para permitir consultas contínuas via `httpfs`, com segurança mantida pela validação determinística de AST (`SqlSecurityValidator`).
+- **Configuração de Infraestrutura e Manifestos Kubernetes:**
+  - `.env.example`: Adicionada a seção `# S3 Remote Dataset Configuration (Zero-Copy Querying)` com variáveis `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_SESSION_TOKEN`, `AWS_ENDPOINT_URL`, `S3_USE_SSL` e exemplo de `DATASET_PATH` (Task 007).
+  - `k8s/configmap.yaml`: `DATASET_PATH` atualizado para `s3://juliosilvacwb-private/sales.csv` e adicionado `AWS_REGION: "us-east-1"` (Task 008).
+  - `k8s/secrets.example.yaml`: Adicionadas chaves `aws-access-key-id`, `aws-secret-access-key` e `aws-session-token` com documentação de política IAM de menor privilégio (Task 008).
+  - `k8s/app-deployment.yaml`: Mapeamento de variáveis de ambiente AWS a partir do Secret `sales-agent-secrets` (Task 008).
+  - `Dockerfile`: Adicionada documentação para modo S3 vs local, mantendo `dataset/` como cópia opcional para backward compatibility (Task 009).
+
+### Security & Reliability
+
+- **Prevenção de Injeção em Comandos DuckDB SET (S015-01 / CWE-89 / CWE-20):** Sanitização e escape estrito de aspas simples (`val.replace("'", "''")`) em todas as credenciais AWS injetadas na sessão SQL do DuckDB.
+- **Higienização de Credenciais e Assinaturas AWS em Logs (S015-02 / CWE-209 / CWE-532):** Implementação de `_sanitize_s3_error` mascarando cabeçalhos `Authorization: AWS4-HMAC-SHA256`, parâmetros `Signature=`, `Credential=`, tokens STS e chaves secretas antes da emissão de logs operacionais.
+- **Defesa em Profundidade contra SSRF (S015-03 / CWE-918 / OWASP A01 / A05):** Validação estrita de formato de URI S3 (`_validate_s3_uri`) contra path traversal (`..`), SSL obrigatório por padrão e bloqueio categórico de funções arbitrárias de I/O na AST SQL via `SqlSecurityValidator`.
+- **Política IAM de Menor Privilégio (S015-04 / CWE-272 / OWASP A05):** Documentação de escopo mínimo estrito a `s3:GetObject` e `s3:ListBucket` no bucket e prefixo específicos do dataset.
+
 ## [1.14.0] - 2026-08-31
 
 ### Fixed

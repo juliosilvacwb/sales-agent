@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import duckdb
 
 from src.application.port.outbound.sales_data_port import SalesDataPort
+from src.domain.exception.s3_exceptions import S3ConnectionError
 from src.domain.model.aggregation_models import (
     AverageDiscountAggregation,
     LocationSalesAggregation,
@@ -26,6 +27,32 @@ from src.domain.model.sale_record import SaleRecord
 
 logger = logging.getLogger(__name__)
 
+_CANONICAL_SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS sales_data (
+    product_id VARCHAR,
+    local VARCHAR,
+    date DATE,
+    planned_quantity DOUBLE,
+    actual_quantity DOUBLE,
+    planned_price DOUBLE,
+    actual_price DOUBLE,
+    service_level DOUBLE,
+    promotion_type VARCHAR
+)
+"""
+
+_COLUMN_CAST_EXPRESSIONS = """
+    CAST(product_id AS VARCHAR) AS product_id,
+    CAST(local AS VARCHAR) AS local,
+    COALESCE(TRY_STRPTIME(CAST(date AS VARCHAR), '%d/%m/%Y')::DATE, TRY_CAST(date AS DATE)) AS date,
+    CAST(planned_quantity AS DOUBLE) AS planned_quantity,
+    CAST(actual_quantity AS DOUBLE) AS actual_quantity,
+    CAST(planned_price AS DOUBLE) AS planned_price,
+    CAST(actual_price AS DOUBLE) AS actual_price,
+    CAST(service_level AS DOUBLE) AS service_level,
+    CAST(promotion_type AS VARCHAR) AS promotion_type
+"""
+
 
 class DuckDbSalesAdapter(SalesDataPort):
     """DuckDB implementation of SalesDataPort for in-process high performance analytical queries."""
@@ -38,49 +65,37 @@ class DuckDbSalesAdapter(SalesDataPort):
         """Initializes the DuckDB connection and loads sales dataset into memory."""
         self._db_path = db_path
         self._dataset_path = dataset_path or os.getenv("DATASET_PATH", "dataset/sales.csv")
+        self._is_s3: bool = self._dataset_path.lower().startswith("s3://")
         self._cached_profile: Optional[DatasetProfile] = None
         self._connection = duckdb.connect(database=self._db_path)
         self._initialize_schema()
 
     def _initialize_schema(self) -> None:
-        """Loads sales dataset into DuckDB in-memory table 'sales_data' if file exists."""
+        """Loads sales dataset into DuckDB from local CSV or remote S3 URI."""
+        if self._is_s3:
+            self._initialize_s3_schema()
+        else:
+            self._initialize_local_schema()
+
+    def _initialize_local_schema(self) -> None:
+        """Loads sales dataset from a local CSV file into DuckDB in-memory table."""
         csv_file = Path(self._dataset_path)
         if not csv_file.exists():
-            logger.warning("Dataset file not found at %s. Creating empty sales_data schema.", self._dataset_path)
-            self._connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS sales_data (
-                    product_id VARCHAR,
-                    local VARCHAR,
-                    date DATE,
-                    planned_quantity DOUBLE,
-                    actual_quantity DOUBLE,
-                    planned_price DOUBLE,
-                    actual_price DOUBLE,
-                    service_level DOUBLE,
-                    promotion_type VARCHAR
-                )
-                """
+            logger.warning(
+                "Dataset file not found at %s. Creating empty sales_data schema.",
+                self._dataset_path,
             )
+            self._connection.execute(_CANONICAL_SCHEMA_DDL)
             return
 
         logger.info("Loading sales dataset from %s into DuckDB...", self._dataset_path)
         normalized_path = str(csv_file.resolve()).replace("\\", "/")
         escaped_path = normalized_path.replace("'", "''")
 
-        # Load CSV using read_csv_auto with semicolon delimiter and robust date parsing
         query = f"""
         CREATE TABLE IF NOT EXISTS sales_data AS
         SELECT
-            CAST(product_id AS VARCHAR) AS product_id,
-            CAST(local AS VARCHAR) AS local,
-            COALESCE(TRY_STRPTIME(CAST(date AS VARCHAR), '%d/%m/%Y')::DATE, TRY_CAST(date AS DATE)) AS date,
-            CAST(planned_quantity AS DOUBLE) AS planned_quantity,
-            CAST(actual_quantity AS DOUBLE) AS actual_quantity,
-            CAST(planned_price AS DOUBLE) AS planned_price,
-            CAST(actual_price AS DOUBLE) AS actual_price,
-            CAST(service_level AS DOUBLE) AS service_level,
-            CAST(promotion_type AS VARCHAR) AS promotion_type
+        {_COLUMN_CAST_EXPRESSIONS}
         FROM read_csv_auto('{escaped_path}', delim=';', header=True)
         """
         self._connection.execute(query)
@@ -90,6 +105,114 @@ class DuckDbSalesAdapter(SalesDataPort):
         except Exception as e:
             logger.warning("Could not set enable_external_access=false: %s", e)
         logger.info("DuckDB table 'sales_data' initialized successfully.")
+
+    @staticmethod
+    def _sanitize_s3_error(error: Any) -> str:
+        """Sanitizes error messages by masking sensitive AWS credentials, tokens, and signatures (CWE-209/532)."""
+        err_str = str(error)
+        # Mask AWS Access Key IDs (20 chars alphanumeric uppercase starting with AKIA, ASIA, etc.)
+        err_str = re.sub(r"(?<![A-Z0-9])(AKIA|ASIA|AROA)[A-Z0-9]{16}(?![A-Z0-9])", r"\1[REDACTED]", err_str)
+        # Mask Authorization header
+        err_str = re.sub(r"(Authorization:\s*AWS4-HMAC-SHA256\s+)[^\r\n,]+", r"\1[REDACTED]", err_str, flags=re.IGNORECASE)
+        # Mask Credential=... in auth strings
+        err_str = re.sub(r"(Credential=)[^\s,/]+/[^\s,/]+/[^\s,/]+/[^\s,/]+/aws4_request", r"\1[REDACTED]", err_str, flags=re.IGNORECASE)
+        # Mask Signatures (X-Amz-Signature, Signature=)
+        err_str = re.sub(r"((?:X-Amz-Signature|Signature)=)[a-zA-Z0-9%+/=]+", r"\1[REDACTED]", err_str, flags=re.IGNORECASE)
+        # Mask Security / Session Tokens
+        err_str = re.sub(r"((?:X-Amz-Security-Token|session_token|s3_session_token)=)[a-zA-Z0-9%+/=]+", r"\1[REDACTED]", err_str, flags=re.IGNORECASE)
+        # Mask Secret Access Key parameter assignments or values
+        err_str = re.sub(r"(s3_secret_access_key\s*=\s*')[^']+(')", r"\1[REDACTED]\2", err_str, flags=re.IGNORECASE)
+        err_str = re.sub(r"(AWS_SECRET_ACCESS_KEY\s*[:=]\s*)[^\s,]+", r"\1[REDACTED]", err_str, flags=re.IGNORECASE)
+        # Normalize whitespace and truncate
+        return re.sub(r"[\r\n\t]+", " ", err_str).strip()[:300]
+
+    @staticmethod
+    def _validate_s3_uri(uri: str) -> None:
+        """Validates S3 URI against path traversal, invalid schemes, and malformed bucket/key patterns (CWE-918)."""
+        if not uri.lower().startswith("s3://"):
+            return
+        if ".." in uri:
+            raise S3ConnectionError(
+                message=f"Invalid S3 URI: Path traversal detected in URI '{uri}'.",
+                status_code=400,
+            )
+        match = re.match(r"^s3://([a-zA-Z0-9.\-_]{3,63})/(.+)$", uri)
+        if not match:
+            raise S3ConnectionError(
+                message=f"Invalid S3 URI format: '{uri}'. Expected format: s3://<bucket>/<key>",
+                status_code=400,
+            )
+
+    def _initialize_s3_schema(self) -> None:
+        """Initializes DuckDB with httpfs extension and creates a VIEW pointing to the S3 URI."""
+        self._validate_s3_uri(self._dataset_path)
+        logger.info("[S3_MODE] Detected S3 URI, installing httpfs extension...")
+        try:
+            self._connection.execute("INSTALL httpfs;")
+            self._connection.execute("LOAD httpfs;")
+            logger.info("[S3_MODE] httpfs extension loaded successfully.")
+        except Exception as e:
+            sanitized_err = self._sanitize_s3_error(e)
+            logger.error("[S3_MODE] Failed to install/load httpfs extension: %s", sanitized_err)
+            self._connection.execute(_CANONICAL_SCHEMA_DDL)
+            return
+
+        self._configure_s3_credentials()
+
+        escaped_s3_path = self._dataset_path.replace("'", "''")
+        view_query = f"""
+        CREATE VIEW IF NOT EXISTS sales_data AS
+        SELECT
+        {_COLUMN_CAST_EXPRESSIONS}
+        FROM read_csv_auto('{escaped_s3_path}', delim=';', header=True)
+        """
+        try:
+            self._connection.execute(view_query)
+            logger.info("[S3_MODE] VIEW 'sales_data' created successfully pointing to S3 URI.")
+        except Exception as e:
+            sanitized_err = self._sanitize_s3_error(e)
+            logger.warning(
+                "[S3_MODE] Failed to create S3 view: %s. Falling back to empty schema.",
+                sanitized_err,
+            )
+            self._connection.execute(_CANONICAL_SCHEMA_DDL)
+
+        # S3 mode: external access remains enabled for streaming queries (ADR-04)
+        logger.info("[S3_MODE] External access remains enabled for S3 streaming queries.")
+
+    def _configure_s3_credentials(self) -> None:
+        """Reads AWS credentials from environment variables and injects them into DuckDB with SQL escaping (CWE-89)."""
+        access_key = os.getenv("AWS_ACCESS_KEY_ID", "")
+        secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        session_token = os.getenv("AWS_SESSION_TOKEN", "")
+        endpoint_url = os.getenv("AWS_ENDPOINT_URL") or os.getenv("S3_ENDPOINT", "")
+        use_ssl = os.getenv("S3_USE_SSL", "true")
+
+        if not access_key or not secret_key:
+            raise S3ConnectionError(
+                message="Missing mandatory AWS credentials: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.",
+                status_code=403,
+            )
+
+        escaped_region = region.replace("'", "''")
+        escaped_access_key = access_key.replace("'", "''")
+        escaped_secret_key = secret_key.replace("'", "''")
+
+        self._connection.execute(f"SET s3_region = '{escaped_region}';")
+        self._connection.execute(f"SET s3_access_key_id = '{escaped_access_key}';")
+        self._connection.execute(f"SET s3_secret_access_key = '{escaped_secret_key}';")
+
+        if session_token:
+            escaped_session_token = session_token.replace("'", "''")
+            self._connection.execute(f"SET s3_session_token = '{escaped_session_token}';")
+        if endpoint_url:
+            escaped_endpoint_url = endpoint_url.replace("'", "''")
+            self._connection.execute(f"SET s3_endpoint = '{escaped_endpoint_url}';")
+        if use_ssl.lower() in ("false", "0", "no"):
+            self._connection.execute("SET s3_use_ssl = false;")
+
+        logger.info("[S3_MODE] AWS credentials configured successfully.")
 
     def aggregate_top_selling_product(self) -> Optional[ProductAggregation]:
         """Aggregates product sales and returns the top selling product."""
@@ -592,6 +715,6 @@ class DuckDbSalesAdapter(SalesDataPort):
             )
             return self._cached_profile
         except Exception as e:
-            sanitized_err = re.sub(r"[\r\n\t]+", " ", str(e)).strip()[:200]
+            sanitized_err = self._sanitize_s3_error(e)
             logger.warning("[DATASET_PROFILING] Profiling failed, proceeding with default prompt schema: %s", sanitized_err)
             return DatasetProfile()

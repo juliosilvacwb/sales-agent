@@ -2,10 +2,12 @@
 FROM python:3.11-slim
 
 # Prevent Python from writing .pyc files and enable unbuffered output
+# S3 Mode: Set DATASET_PATH=s3://bucket/file.csv via K8s ConfigMap/env to enable
+# zero-copy S3 streaming via DuckDB httpfs (no local dataset required).
+# Local Mode: Set DATASET_PATH=/app/dataset/sales.csv for local CSV fallback.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    DATASET_PATH=/app/dataset/sales.csv \
     LOG_LEVEL=INFO
 
 # Set working directory
@@ -21,8 +23,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy source code, dataset, and configuration files
+# Copy source code and configuration files
 COPY src/ /app/src/
+# Optional: Copy local dataset for backward compatibility (not required in S3 mode)
 COPY dataset/ /app/dataset/
 COPY .env.example /app/.env.example
 COPY pyproject.toml /app/pyproject.toml
@@ -38,3 +41,4 @@ EXPOSE 8000
 
 # Default entrypoint starts the Web FastAPI application
 ENTRYPOINT ["python", "-m", "uvicorn", "src.adapter.inbound.web.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

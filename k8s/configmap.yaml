@@ -8,7 +8,10 @@ data:
   SESSION_STORE: "redis"
   REDIS_URL: "redis://redis-service:6379/0"
   SESSION_TTL_SECONDS: "86400"
-  DATASET_PATH: "/app/dataset/sales.csv"
+  # S3 Remote Dataset: DuckDB streams directly from S3 via httpfs (Zero-Copy)
+  # For local CSV fallback, use: DATASET_PATH: "/app/dataset/sales.csv"
+  DATASET_PATH: "s3://juliosilvacwb-private/sales.csv"
+  AWS_REGION: "us-east-1"
   AUTH_ENABLED: "true"
   AUTH_SERVICE_URL: "http://auth-service:8001"
   AUTH_USER: "admin"

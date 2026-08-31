@@ -45,6 +45,25 @@ spec:
                   name: sales-agent-secrets
                   key: google-api-key
                   optional: true
+            # AWS S3 Credentials for DuckDB httpfs Zero-Copy Querying
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sales-agent-secrets
+                  key: aws-access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sales-agent-secrets
+                  key: aws-secret-access-key
+                  optional: true
+            - name: AWS_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sales-agent-secrets
+                  key: aws-session-token
+                  optional: true
           resources:
             requests:
               cpu: 250m

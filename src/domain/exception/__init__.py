@@ -12,6 +12,7 @@ from src.domain.exception.auth_exceptions import (
     ExpiredTokenError,
     MissingTokenError,
 )
+from src.domain.exception.s3_exceptions import S3ConnectionError
 
 __all__ = [
     "SessionDomainError",
@@ -23,4 +24,5 @@ __all__ = [
     "InvalidTokenError",
     "ExpiredTokenError",
     "MissingTokenError",
+    "S3ConnectionError",
 ]
