@@ -479,6 +479,7 @@ def test_call_model_node_preserves_model_without_bind_tools_capability():
 
 def test_tool_node_instantiation_with_error_handling_enabled():
     """[TEST014-04 / T014-002] Verify ToolNode is instantiated with handle_tool_errors=True and returns ToolMessage on exception."""
+    from typing import Any, cast
     from langchain_core.tools import tool, ToolException
     from langgraph.graph import StateGraph, MessagesState, START, END
     from langgraph.prebuilt import ToolNode
@@ -490,7 +491,7 @@ def test_tool_node_instantiation_with_error_handling_enabled():
         raise ToolException("Coluna inexistente")
 
     tool_node = ToolNode([failing_tool], handle_tool_errors=True)
-    builder = StateGraph(MessagesState)
+    builder = StateGraph(cast(Any, MessagesState))
     builder.add_node("tools", tool_node)
     builder.add_edge(START, "tools")
     builder.add_edge("tools", END)
@@ -510,9 +511,10 @@ def test_tool_node_instantiation_with_error_handling_enabled():
 def test_should_continue_routes_to_tools_when_tool_calls_present():
     """[TEST014-05 / T014-003] Verify should_continue returns 'tools' when tool_calls are present."""
     from langchain_core.messages import AIMessage
+    from langgraph.graph import MessagesState
     from src.adapter.inbound.llm.sales_agent import should_continue
 
-    state = {
+    state: MessagesState = {
         "messages": [
             AIMessage(
                 content="",
@@ -526,10 +528,10 @@ def test_should_continue_routes_to_tools_when_tool_calls_present():
 def test_should_continue_routes_to_end_when_no_tool_calls():
     """[TEST014-06 / T014-003] Verify should_continue returns END when no tool_calls are present."""
     from langchain_core.messages import AIMessage
-    from langgraph.graph import END
+    from langgraph.graph import END, MessagesState
     from src.adapter.inbound.llm.sales_agent import should_continue
 
-    state = {
+    state: MessagesState = {
         "messages": [
             AIMessage(content="O produto mais vendido foi Prod_01.")
         ]
@@ -782,6 +784,7 @@ def test_sales_agent_tool_message_outside_whitelist_does_not_flag_data_queried()
 def test_sales_agent_ask_sanitizes_and_discards_invalid_chat_history_elements(caplog):
     """[S014-04] Test that SalesAgent.ask discards invalid, non-BaseMessage objects in chat_history."""
     import logging
+    from typing import Any, cast
     from langchain_core.messages import HumanMessage, AIMessage
 
     mock_llm = MagicMock()
@@ -801,7 +804,7 @@ def test_sales_agent_ask_sanitizes_and_discards_invalid_chat_history_elements(ca
                 HumanMessage(content="Valid message"),
                 12345,
             ]
-            result = agent.ask("Pergunta", chat_history=invalid_history)
+            result = agent.ask("Pergunta", chat_history=cast(Any, invalid_history))
 
             assert result.response == "Sucesso"
             # Should have SystemMessage + 1 Valid HumanMessage + HumanMessage(question)

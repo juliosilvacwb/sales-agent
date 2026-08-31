@@ -236,7 +236,8 @@ def test_sales_data_port_profile_dataset_abstract_method():
         pass
 
     with pytest.raises(TypeError):
-        IncompleteSalesDataPort()
+        IncompleteSalesDataPort()  # type: ignore[abstract]
+
 
 
 

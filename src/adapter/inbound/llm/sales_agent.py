@@ -1,12 +1,12 @@
 """Sales Agent Orchestrator with LangGraph State Machine and Tool Routing."""
 import logging
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Union, cast
 
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool, ToolException
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -197,7 +197,7 @@ class AgentResult:
         return self.response.strip(chars)
 
 
-def should_continue(state: MessagesState) -> str:
+def should_continue(state: Union[MessagesState, Dict[str, Any]]) -> str:
     """Evaluates the last message in state and routes to 'tools' if tool_calls exist, else END."""
     messages = state.get("messages", []) if isinstance(state, dict) else getattr(state, "messages", [])
     if not messages:
@@ -209,12 +209,12 @@ def should_continue(state: MessagesState) -> str:
 
 
 def create_sales_graph(
-    model: BaseChatModel,
+    model: Union[BaseChatModel, Runnable, Any],
     tools: Sequence[BaseTool],
     system_prompt: Optional[str] = None,
 ) -> Any:
     """Builds and compiles a LangGraph StateGraph state machine for sales analysis orchestration."""
-    model_with_tools = (
+    model_with_tools: Any = (
         model.bind_tools(tools)
         if hasattr(model, "bind_tools") and callable(model.bind_tools)
         else model
@@ -222,10 +222,17 @@ def create_sales_graph(
 
     def call_model(state: MessagesState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
         messages = state["messages"]
-        response = model_with_tools.invoke(messages, config=config)
+        if hasattr(model_with_tools, "invoke") and callable(model_with_tools.invoke):
+            response = model_with_tools.invoke(messages, config=config)
+        elif callable(model_with_tools):
+            response = model_with_tools(messages)
+        else:
+            raise AttributeError(
+                f"Model object of type '{type(model_with_tools).__name__}' does not have an 'invoke' method."
+            )
         return {"messages": [response]}
 
-    builder = StateGraph(MessagesState)
+    builder = StateGraph(cast(Any, MessagesState))
     builder.add_node("agent", call_model)
     builder.add_node("tools", ToolNode(tools, handle_tool_errors=_handle_tool_error))
 
@@ -241,7 +248,7 @@ def create_sales_graph(
 
 
 def create_agent(
-    model: BaseChatModel,
+    model: Union[BaseChatModel, Runnable, Any],
     tools: Sequence[BaseTool],
     system_prompt: Optional[str] = None,
 ) -> Any:
