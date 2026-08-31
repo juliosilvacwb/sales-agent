@@ -173,3 +173,59 @@ def test_handle_tool_error_crlf_sanitization(caplog):
     assert "Erro linha 1" in result
 
 
+def test_build_system_prompt_without_profile_or_empty():
+    """[TEST011-11 / S011-05] Test that build_system_prompt returns base prompt when profile is None or empty."""
+    from src.adapter.inbound.llm.sales_agent import build_system_prompt
+    from src.domain.model.dataset_profile import DatasetProfile
+
+    assert build_system_prompt("BASE") == "BASE"
+    assert build_system_prompt("BASE", None) == "BASE"
+    assert build_system_prompt("BASE", DatasetProfile()) == "BASE"
+    assert build_system_prompt("BASE", DatasetProfile(total_records=0)) == "BASE"
+
+
+def test_build_system_prompt_with_valid_profile():
+    """[TEST011-12] Test that build_system_prompt appends dynamic insights block."""
+    from src.adapter.inbound.llm.sales_agent import build_system_prompt
+    from src.domain.model.dataset_profile import DatasetProfile
+
+    profile = DatasetProfile(
+        total_records=5000,
+        min_date="01/01/2024",
+        max_date="31/12/2024",
+        distinct_products=25,
+        distinct_locations=3,
+        null_representations={"promotion_type": "None"},
+        constant_columns={"service_level": 0.99},
+    )
+    augmented = build_system_prompt("BASE PROMPT", profile)
+    assert "BASE PROMPT" in augmented
+    assert "### DYNAMIC DATA INSIGHTS:" in augmented
+    assert "Total de registros no dataset: 5,000" in augmented
+    assert "WHERE promotion_type = 'None'" in augmented
+
+
+def test_sales_agent_initialization_with_dataset_profile():
+    """[TEST011-13] Test initializing SalesAgent with dataset_profile injects insights into system prompt."""
+    from src.domain.model.dataset_profile import DatasetProfile
+
+    mock_llm = MagicMock()
+    mock_tools = []
+    profile = DatasetProfile(
+        total_records=100,
+        min_date="01/01/2023",
+        max_date="31/01/2023",
+        null_representations={"promotion_type": "None"},
+    )
+
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
+        agent = SalesAgent(llm=mock_llm, tools=mock_tools, dataset_profile=profile)
+        assert "### DYNAMIC DATA INSIGHTS:" in agent.system_prompt
+        assert "WHERE promotion_type = 'None'" in agent.system_prompt
+        mock_create_agent.assert_called_once()
+        _, kwargs = mock_create_agent.call_args
+        assert kwargs["system_prompt"] == agent.system_prompt
+
+
+
+

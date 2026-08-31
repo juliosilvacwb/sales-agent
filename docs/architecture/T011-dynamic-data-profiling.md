@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R011-dynamic-data-profiling.md](../business-requirements/R011-dynamic-data-profiling.md)
+- **Test Coverage:** [TEST011-dynamic-data-profiling.md](../tests/TEST011-dynamic-data-profiling.md)
+- **Security Audit:** [S011-dynamic-data-profiling.md](../security/S011-dynamic-data-profiling.md)
 
 ## Technical Goal
 
@@ -42,21 +44,21 @@ Transition the Sales Data Analysis Agent from a static prompt schema to a dynami
 
 #### Phase 1 tasks (all parallel-safe)
 
-- [ ] Task 001 - [Domain-Model]: Create `DatasetProfile` and `DataInsights` models (Depends On: —)
-- [ ] Task 002 - [Port-Out]: Update `SalesDataPort` with `profile_dataset` interface (Depends On: Task 001)
+- [COMPLETED] Task 001 - [Domain-Model]: Create `DatasetProfile` and `DataInsights` models (Depends On: —)
+- [COMPLETED] Task 002 - [Port-Out]: Update `SalesDataPort` with `profile_dataset` interface (Depends On: Task 001)
 
 ### 🟡 Phase 2 — Persistence Implementation (Depends on Phase 1)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 003 - [Adapter-Persistence]: Implement DuckDB `DatasetProfiler` logic (Depends On: Task 002)
+- [COMPLETED] Task 003 - [Adapter-Persistence]: Implement DuckDB `DatasetProfiler` logic (Depends On: Task 002)
 
 ### 🟢 Phase 3 — Agent Orchestration and Injection (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 004 - [Adapter-Web]: Update Agent Factory to inject Dynamic Insights block (Depends On: Task 003)
-- [ ] Task 005 - [Test-Integration]: Implement E2E tests for dynamic prompt adaptation (Depends On: Task 004)
+- [COMPLETED] Task 004 - [Adapter-Web]: Update Agent Factory to inject Dynamic Insights block (Depends On: Task 003)
+- [COMPLETED] Task 005 - [Test-Integration]: Implement E2E tests for dynamic prompt adaptation (Depends On: Task 004)
 
 ## Task Detailing (Summary Tasks)
 

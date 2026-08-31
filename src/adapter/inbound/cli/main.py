@@ -44,8 +44,11 @@ def bootstrap_agent(dataset_path: Optional[str] = None) -> SalesAgent:
     # 4. Outbound LLM Factory
     llm = LLMFactory.create_llm()
 
-    # 5. Agent Orchestrator
-    return SalesAgent(llm=llm, tools=all_tools)
+    # 5. Dynamic Dataset Profiling
+    profile = persistence_adapter.profile_dataset()
+
+    # 6. Agent Orchestrator with dynamic dataset insights
+    return SalesAgent(llm=llm, tools=all_tools, dataset_profile=profile)
 
 
 def main() -> None:

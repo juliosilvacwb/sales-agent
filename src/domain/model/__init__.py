@@ -30,6 +30,10 @@ from src.domain.model.auth_models import (
     AuthCredentials,
     TokenResponse,
 )
+from src.domain.model.dataset_profile import (
+    DataInsights,
+    DatasetProfile,
+)
 
 __all__ = [
     "SaleRecord",
@@ -57,4 +61,6 @@ __all__ = [
     "TokenClaims",
     "AuthCredentials",
     "TokenResponse",
+    "DataInsights",
+    "DatasetProfile",
 ]

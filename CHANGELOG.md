@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-08-30
+
+### Added
+
+- **Perfilamento Dinâmico de Dados e Injeção de Contexto (T011 / R011):**
+  - Implementação de inspeção de metadados read-only em tempo de inicialização (`profile_dataset`), adaptando o prompt do Sales Agent à realidade empírica do banco de dados DuckDB sem mutação dos dados brutos (BR01).
+- **Modelos de Domínio de Perfilamento (`src/domain/model/dataset_profile.py`):**
+  - Criação dos Value Objects `DatasetProfile` e `DataInsights`, incluindo gerador de blocos Markdown estruturados `### DYNAMIC DATA INSIGHTS:` com sanitização linear de metadados.
+- **Extensão da Porta de Saída (`src/application/port/outbound/sales_data_port.py`):**
+  - Adição do método abstrato `profile_dataset() -> DatasetProfile`.
+- **Adaptador de Persistência DuckDB (`src/adapter/outbound/persistence/duckdb_sales_adapter.py`):**
+  - Implementação de profiling analítico veloz (< 100ms) com detecção de valores sentinela (ex: `'None'`, `'N/A'`) em colunas de texto como `promotion_type`, identificação de colunas invariantes (`service_level`) e limites temporais/cardinalidade. Cache in-memory e fallback gracioso em caso de erro na consulta exploratória.
+- **Injeção de Contexto Dinâmico no Agente (`src/adapter/inbound/llm/sales_agent.py`, `src/adapter/inbound/cli/main.py`):**
+  - Integração do `build_system_prompt` e instanciação do agente injetando os insights empíricos no `system_prompt` do LangChain.
+- **Suíte de Testes Automatizados:**
+  - Testes unitários em `tests/unit/test_dataset_profile.py`, `tests/unit/test_duckdb_sales_adapter.py` e `tests/unit/test_sales_agent.py`.
+  - Testes de integração End-to-End em `tests/integration/test_dynamic_profiling.py`.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R011-dynamic-data-profiling.md`, `T011-dynamic-data-profiling.md`, `TEST011-dynamic-data-profiling.md`, `S011-dynamic-data-profiling.md`, `Q011-dynamic-data-profiling.md` e `PS011-dynamic-data-profiling.md`.
+
+### Security & Reliability
+
+- **Defesa contra Indirect Prompt Injection em Metadados (S011-01 / OWASP LLM01 / CWE-20):** Sanitização linear rigorosa de quebras de linha (`\r`, `\n`, `\t`), neutralização de marcadores de cabeçalho Markdown (`###`) e imposição de limite de tamanho em metadados extraídos da base.
+- **Otimização de Escopo e Proteção de Recursos no Boot (S011-02 / CWE-400 / OWASP LLM04):** Whitelist tipada de colunas inspecionadas e persistência em cache de instância (`_cached_profile`) O(1).
+- **Imutabilidade de Dados Brutos (S011-03 / BR01 / ADR-01 / CWE-284):** Perfilamento restrito a consultas analíticas `SELECT` sobre `information_schema` e `sales_data`, sem mutações DDL/DML.
+- **Isolamento de Falhas e Mascaramento de Logs no Profiling (S011-04 / CWE-209 / NFR Reliability):** Profiling encapsulado em `try/except Exception` com sanitização defensiva de mensagens de log e fallback para `DatasetProfile()` vazio sem interromper o boot.
+- **Validação Defensiva de Composição do Prompt (S011-05):** Preservação do prompt base sem quebras de layout na ausência de metadados ou tabelas vazias.
+
 ## [1.8.0] - 2026-08-30
 
 ### Added

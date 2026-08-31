@@ -9,6 +9,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, ToolException
 
+from src.domain.model.dataset_profile import DatasetProfile
+
 logger = logging.getLogger(__name__)
 
 FALLBACK_ERROR_MESSAGE = (
@@ -61,6 +63,19 @@ Sua missão é responder com precisão matemática, clareza e insights de negóc
 """
 
 
+def build_system_prompt(
+    base_prompt: str = SYSTEM_PROMPT,
+    profile: Optional[DatasetProfile] = None,
+) -> str:
+    """Builds a system prompt by appending dynamic dataset profiling insights if available."""
+    if profile is None:
+        return base_prompt
+    insights_block = profile.to_markdown_block()
+    if not insights_block:
+        return base_prompt
+    return f"{base_prompt.rstrip()}\n\n{insights_block}"
+
+
 def _handle_tool_error(error: ToolException) -> str:
     """Custom error handler for tool exceptions that logs telemetry and returns error feedback."""
     err_msg = str(error.args[0]) if error.args else str(error)
@@ -76,7 +91,8 @@ class SalesAgent:
         self,
         llm: BaseChatModel,
         tools: Sequence[BaseTool],
-        system_prompt: str = SYSTEM_PROMPT,
+        system_prompt: Optional[str] = None,
+        dataset_profile: Optional[DatasetProfile] = None,
         max_history_messages: int = 20,
         verbose: bool = False,
     ) -> None:
@@ -91,11 +107,19 @@ class SalesAgent:
                 t.handle_tool_error = _handle_tool_error
             self._tools.append(t)
 
+        base_prompt = system_prompt if system_prompt is not None else SYSTEM_PROMPT
+        self._system_prompt = build_system_prompt(base_prompt, dataset_profile)
+
         self._executor = create_agent(
             model=self._llm,
             tools=self._tools,
-            system_prompt=system_prompt,
+            system_prompt=self._system_prompt,
         )
+
+    @property
+    def system_prompt(self) -> str:
+        """Returns the active system prompt with any injected dynamic insights."""
+        return self._system_prompt
 
     def ask(
         self,

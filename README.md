@@ -26,6 +26,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 9. **Escalabilidade Distribuída & Sessão Stateless (Redis + K3s):** Camada de computação 100% desacoplada de estado conversacional através da porta de saída `SessionStorePort` e `SessionFactory`, permitindo escalabilidade horizontal em Kubernetes/K3s com multi-réplicas sem perda de histórico conversacional entre pods ou durante rolling updates.
 10. **Autocorreção Agêntica e Resiliência a Erros (T009 / R009):** Mecanismo autônomo baseado em `ToolException` nativo da LangChain. Falhas de consulta SQL (ex: colunas alucinadas, erros de sintaxe) e erros de validação de datas são interceptados e re-injetados no contexto do LLM com telemetria `[AGENT_SELF_CORRECTION]`, permitindo que o modelo repare seus próprios parâmetros em um único turno com teto estrito de 3 tentativas (`recursion_limit: 8`), garantindo zero exposição de erros técnicos ao usuário final (Regra BR01).
 11. **Avaliações Determinísticas com Golden Evals (T010 / R010):** Framework automatizado de benchmarking contínuo para prevenção de alucinações matemáticas e *Prompt Drift*. Intercepta payloads JSON estruturados de ferramentas intermediárias antes da síntese em linguagem natural, aplicando asserções exatas com tolerâncias de ponto flutuante (`abs_tol=0.01`, `rel_tol=1e-3`) e integrando um Quality Gate bloqueante no pipeline de CI/CD (`.github/workflows/evals.yml`).
+12. **Perfilamento Dinâmico de Dados e Injeção de Contexto (T011 / R011 / S011):** Inspeção de metadados read-only em tempo de inicialização (startup) no DuckDB com detecção de valores sentinela literais (ex: `'None'`), colunas invariantes (`service_level`) e limites temporais/cardinalidade. Síntese do bloco `### DYNAMIC DATA INSIGHTS:` injetado no `SYSTEM_PROMPT` com sanitização contra Indirect Prompt Injection, orientando o LLM a emitir filtros de igualdade estrita (`WHERE promotion_type = 'None'`) sem mutação dos dados brutos (BR01).
 
 ---
 
@@ -238,6 +239,44 @@ sequenceDiagram
         end
     end
     Runner-->>CI: Suite de Evals Aprovada com Sucesso (< 60s)
+```
+
+---
+
+### 📊 Fluxo de Perfilamento Dinâmico de Dados e Injeção de Contexto (Dataset Profiler)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Boot as Bootstrap / Lifecycle (main.py)
+    participant Adapter as DuckDbSalesAdapter
+    participant DuckDB as DuckDB OLAP Engine (:memory:)
+    participant Profile as DatasetProfile (Domain Model)
+    participant Agent as SalesAgent Orchestrator
+    participant LLM as LLM Provider (LangChain)
+
+    Note over Boot,DuckDB: 1. Fase de Descoberta Empírica no Startup (< 100ms)
+    Boot->>Adapter: profile_dataset()
+    alt Perfil em Cache (_cached_profile is not None)
+        Adapter-->>Boot: Retorna _cached_profile O(1)
+    else Primeiro Boot
+        Adapter->>DuckDB: SELECT COUNT(*), MIN(date), MAX(date), COUNT(DISTINCT product_id), COUNT(DISTINCT local) FROM sales_data
+        DuckDB-->>Adapter: Estatísticas Globais & Limites Temporais
+        Adapter->>DuckDB: SELECT DISTINCT promotion_type FROM sales_data WHERE promotion_type IN ('None', 'N/A', '')
+        DuckDB-->>Adapter: Sentinelas de Nulo Detectados (ex: 'None')
+        Adapter->>DuckDB: SELECT COUNT(DISTINCT col), MIN(col) FROM sales_data (Candidate Whitelist)
+        DuckDB-->>Adapter: Invariantes Detectadas (ex: service_level = 0.99)
+        Adapter->>Profile: Instancia DatasetProfile(total_records, bounds, null_reps, constants)
+        Adapter-->>Boot: Retorna DatasetProfile
+    end
+
+    Note over Boot,LLM: 2. Fase de Injeção e Execução de Consultas
+    Boot->>Profile: to_markdown_block() (Com Sanitização Anti-Prompt Injection S011-01)
+    Profile-->>Boot: Retorna bloco "### DYNAMIC DATA INSIGHTS:"
+    Boot->>Agent: Instancia SalesAgent(llm, tools, dataset_profile)
+    Agent->>Agent: build_system_prompt(base_prompt, profile)
+    Agent->>LLM: Inicializa agente com SYSTEM_PROMPT enriquecido
+    Note over Agent,LLM: Consultas sobre vendas não promocionais usam WHERE promotion_type = 'None' (Zero Alucinações)
 ```
 
 ---
@@ -477,11 +516,14 @@ kubectl get svc
 
 ## 🧪 Executando os Testes
 
-O repositório possui **303 testes automatizados** cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração e suite de Golden Evals:
+O repositório possui **320+ testes automatizados** cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração, suite de Golden Evals e perfilamento dinâmico de dados:
 
 ```bash
 # Executa a suíte completa de testes
 python -m pytest
+
+# Executa a suíte de perfilamento dinâmico e injeção de contexto (T011 / R011 / S011)
+python -m pytest tests/unit/test_dataset_profile.py tests/unit/test_duckdb_sales_adapter.py tests/integration/test_dynamic_profiling.py -v
 
 # Executa a suíte de Avaliações Determinísticas (Golden Evals)
 python -m pytest tests/evals/test_golden_evals.py -v
@@ -506,3 +548,5 @@ python -m pytest tests/integration/test_jwt_auth_e2e.py -v
 - **Prevenção de Injeção SQL & AST Guardrails:** A ferramenta `secured_sql_query` analisa consultas estruturalmente via AST (`sqlglot`) no dialeto DuckDB, bloqueando comandos mutacionais em qualquer profundidade e isolando literais de texto.
 - **Sanitização de Respostas & Mínimo Privilégio:** Contêineres executando com usuário não-root (`appuser`, UID 1000), respostas de erro uniformes sem vazamento de stack traces e mascaramento de caminhos do servidor `[REDACTED_PATH]`.
 - **Blindagem contra Alucinação Matemática e Prompt Drift (OWASP LLM04, LLM06 / T010):** Interceptação estrita de saídas estruturadas em `tests/evals/` validando 100% de exatidão numérica contra o dataset fixo hermético `eval_dataset.csv` sobre DuckDB em memória (`:memory:`), com sanitização automática de caminhos locais (`[REDACTED_PATH]`) e retentativa exponencial contra instabilidades transitórias de API.
+- **Defesa contra Indirect Prompt Injection em Metadados Dinâmicos (OWASP LLM01 / S011 / CWE-20):** Sanitização linear rigorosa de quebras de linha (`\r`, `\n`, `\t`), neutralização de marcadores de cabeçalho Markdown (`###`) e imposição de limites de tamanho em metadados extraídos do dataset antes da interpolação no prompt do sistema agêntico.
+

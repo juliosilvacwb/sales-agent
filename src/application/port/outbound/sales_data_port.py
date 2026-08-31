@@ -15,11 +15,17 @@ from src.domain.model.aggregation_models import (
     ServiceLevelBottleneckAggregation,
     TotalSalesAggregation,
 )
+from src.domain.model.dataset_profile import DatasetProfile
 from src.domain.model.sale_record import SaleRecord
 
 
 class SalesDataPort(ABC):
     """Abstract interface defining required data access operations for sales analytics."""
+
+    @abstractmethod
+    def profile_dataset(self) -> DatasetProfile:
+        """Discovers dataset bounds, sentinels, and constant columns without mutating raw data."""
+        raise NotImplementedError
 
     @abstractmethod
     def aggregate_top_selling_product(self) -> Optional[ProductAggregation]:

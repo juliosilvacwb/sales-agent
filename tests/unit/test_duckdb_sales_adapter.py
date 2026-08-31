@@ -170,3 +170,73 @@ def test_duckdb_sales_adapter_external_access_disabled(sample_csv_path):
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
     with pytest.raises(Exception):
         adapter.execute_read_only_query(f"SELECT * FROM read_csv_auto('{sample_csv_path}')")
+
+
+def test_duckdb_sales_adapter_profile_dataset_extraction(sample_csv_path):
+    """[TEST011-06] Test profiling dataset extracting global stats and constants."""
+    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
+    profile = adapter.profile_dataset()
+
+    assert profile.total_records == 3
+    assert profile.distinct_products == 2
+    assert profile.distinct_locations == 2
+    assert profile.min_date == "03/01/2023"
+    assert profile.max_date == "20/03/2023"
+
+
+def test_duckdb_sales_adapter_profile_dataset_caching(sample_csv_path):
+    """[TEST011-07 / S011-02] Test profiling dataset caches results in memory across subsequent calls."""
+    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
+    profile1 = adapter.profile_dataset()
+    profile2 = adapter.profile_dataset()
+    assert profile1 is profile2
+
+
+def test_duckdb_sales_adapter_profile_dataset_missing_csv_fallback():
+    """[TEST011-08 / S011-04] Test profiling dataset on empty schema returns default empty DatasetProfile."""
+    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path="non_existent.csv")
+    profile = adapter.profile_dataset()
+
+    assert profile.total_records == 0
+    assert profile.to_markdown_block() == ""
+
+
+def test_duckdb_sales_adapter_profile_dataset_exception_graceful_handling(sample_csv_path, monkeypatch):
+    """[TEST011-09 / S011-04] Test that unexpected SQL errors during profiling are swallowed gracefully."""
+    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
+    # Simulate connection error
+    def broken_execute(*args, **kwargs):
+        raise RuntimeError("Simulated connection failure")
+    monkeypatch.setattr(adapter._connection, "execute", broken_execute)
+
+    profile = adapter.profile_dataset()
+    assert profile.total_records == 0
+
+
+def test_duckdb_sales_adapter_profile_dataset_immutability(sample_csv_path):
+    """[TEST011-10 / S011-03] Test that profile_dataset does not mutate underlying sales_data records (BR01)."""
+    adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
+    initial_records = adapter.get_sales_by_filter()
+    assert len(initial_records) == 3
+
+    # Execute profiling
+    adapter.profile_dataset()
+
+    # Verify records remain intact
+    after_records = adapter.get_sales_by_filter()
+    assert len(after_records) == 3
+    assert [r.product_id for r in after_records] == [r.product_id for r in initial_records]
+
+
+def test_sales_data_port_profile_dataset_abstract_method():
+    """[TEST011-05] Test that SalesDataPort cannot be instantiated without implementing profile_dataset."""
+    from src.application.port.outbound.sales_data_port import SalesDataPort
+
+    class IncompleteSalesDataPort(SalesDataPort):
+        pass
+
+    with pytest.raises(TypeError):
+        IncompleteSalesDataPort()
+
+
+

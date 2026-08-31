@@ -1,6 +1,7 @@
 """Outbound persistence adapter for DuckDB."""
 import logging
 import os
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -20,6 +21,7 @@ from src.domain.model.aggregation_models import (
     ServiceLevelBottleneckAggregation,
     TotalSalesAggregation,
 )
+from src.domain.model.dataset_profile import DatasetProfile
 from src.domain.model.sale_record import SaleRecord
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,7 @@ class DuckDbSalesAdapter(SalesDataPort):
         """Initializes the DuckDB connection and loads sales dataset into memory."""
         self._db_path = db_path
         self._dataset_path = dataset_path or os.getenv("DATASET_PATH", "dataset/sales.csv")
+        self._cached_profile: Optional[DatasetProfile] = None
         self._connection = duckdb.connect(database=self._db_path)
         self._initialize_schema()
 
@@ -495,3 +498,100 @@ class DuckDbSalesAdapter(SalesDataPort):
             service_level=float(row[7]) if row[7] is not None else 0.0,
             promotion_type=promo_type,
         )
+
+    def profile_dataset(self) -> DatasetProfile:
+        """Discovers dataset bounds, sentinels, and constant columns without mutating raw data."""
+        if self._cached_profile is not None:
+            return self._cached_profile
+        try:
+            # Check if sales_data table exists and has rows
+            table_check = self._connection.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'sales_data'"
+            ).fetchone()
+            if not table_check or table_check[0] == 0:
+                self._cached_profile = DatasetProfile()
+                return self._cached_profile
+
+            # 1. Global stats
+            stats_query = """
+            SELECT
+                COUNT(*) AS total_records,
+                MIN(date) AS min_date,
+                MAX(date) AS max_date,
+                COUNT(DISTINCT product_id) AS distinct_products,
+                COUNT(DISTINCT local) AS distinct_locations
+            FROM sales_data
+            """
+            stats_row = self._connection.execute(stats_query).fetchone()
+            if not stats_row or stats_row[0] == 0:
+                self._cached_profile = DatasetProfile()
+                return self._cached_profile
+
+            total_records = int(stats_row[0])
+            raw_min_date = stats_row[1]
+            raw_max_date = stats_row[2]
+            distinct_products = int(stats_row[3] or 0)
+            distinct_locations = int(stats_row[4] or 0)
+
+            # Format dates as DD/MM/YYYY
+            min_date_str = None
+            if raw_min_date is not None:
+                min_date_str = (
+                    raw_min_date.strftime("%d/%m/%Y")
+                    if hasattr(raw_min_date, "strftime")
+                    else str(raw_min_date)
+                )
+            max_date_str = None
+            if raw_max_date is not None:
+                max_date_str = (
+                    raw_max_date.strftime("%d/%m/%Y")
+                    if hasattr(raw_max_date, "strftime")
+                    else str(raw_max_date)
+                )
+
+            # 2. Get table columns
+            columns_info = self._connection.execute(
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'sales_data'"
+            ).fetchall()
+            column_names = [col[0].lower() for col in columns_info]
+
+            # Detect sentinel strings in text columns (e.g. promotion_type)
+            null_representations: Dict[str, Any] = {}
+            if "promotion_type" in column_names:
+                sentinels_query = """
+                SELECT DISTINCT promotion_type
+                FROM sales_data
+                WHERE promotion_type IN ('None', 'none', 'N/A', 'n/a', 'NULL', 'null', '')
+                """
+                sentinels = self._connection.execute(sentinels_query).fetchall()
+                found_sentinels = [s[0] for s in sentinels if s[0] is not None]
+                if found_sentinels:
+                    null_representations["promotion_type"] = (
+                        found_sentinels[0] if len(found_sentinels) == 1 else found_sentinels
+                    )
+
+            # 3. Detect invariant columns where COUNT(DISTINCT col) == 1 and non-null
+            constant_columns: Dict[str, Any] = {}
+            candidate_cols = ["service_level", "planned_price", "actual_price", "local", "product_id"]
+            for col in candidate_cols:
+                if col in column_names:
+                    inv_row = self._connection.execute(
+                        f"SELECT COUNT(DISTINCT {col}), MIN({col}) FROM sales_data WHERE {col} IS NOT NULL"
+                    ).fetchone()
+                    if inv_row and inv_row[0] == 1 and inv_row[1] is not None:
+                        constant_columns[col] = inv_row[1]
+
+            self._cached_profile = DatasetProfile(
+                total_records=total_records,
+                min_date=min_date_str,
+                max_date=max_date_str,
+                distinct_products=distinct_products,
+                distinct_locations=distinct_locations,
+                null_representations=null_representations,
+                constant_columns=constant_columns,
+            )
+            return self._cached_profile
+        except Exception as e:
+            sanitized_err = re.sub(r"[\r\n\t]+", " ", str(e)).strip()[:200]
+            logger.warning("[DATASET_PROFILING] Profiling failed, proceeding with default prompt schema: %s", sanitized_err)
+            return DatasetProfile()
