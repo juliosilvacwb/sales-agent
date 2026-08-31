@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-08-31
+
+### Fixed
+
+- **Bloqueio de Chat e Abertura Automática da Modal de Autenticação (B005):**
+  - Correção da inicialização da interface web (`src/adapter/inbound/web/static/app.js` e `src/adapter/inbound/web/static/index.html`) para disparar a modal de login automaticamente no carregamento quando não há token JWT em `sessionStorage`.
+  - Imposição de postura *Fail-Closed* no frontend, iniciando os elementos `#chat-input` e `#send-btn` com o atributo `disabled` diretamente no HTML estático e mantendo-os bloqueados até a autenticação com sucesso.
+  - Atualização dinâmica do status visual no header da aplicação (`"Não autenticado"` vs `"Online"`).
+- **Remoção de Credenciais Hardcoded e Prevenção de Autofill Inseguro (SB005 / CWE-798):**
+  - Remoção do atributo estático `value="admin"` do campo `<input id="auth-username">`, substituindo-o por `placeholder="Digite seu usuário..."` e atributo semântico de acessibilidade `autocomplete="username"`.
+  - Garantia de que o campo `<input id="auth-password">` permaneça vazio com `placeholder="Digite sua senha..."` e `autocomplete="current-password"`.
+- **Encapsulamento da Topologia do Auth Microservice (SB005 / CWE-200):**
+  - Remoção dos campos visíveis de configuração de URL (`<label for="auth-url">` e `<input id="auth-url">`) do formulário de login no modal HTML.
+  - Encapsulamento da rota interna do microsserviço de autenticação via constante JavaScript configurável `AUTH_SERVICE_URL` com fallback seguro para `window.AUTH_SERVICE_URL || "http://localhost:8001"`.
+- **Tratamento de Sessão Expirada e Erro HTTP 401:**
+  - Interceptação de respostas HTTP 401 Unauthorized nas requisições do chat, invalidando a sessão (`setJwtToken(null)`), retendo a mensagem pendente (`pendingMessage`) e reabrindo a modal interativa para reautenticação imediata sem perda do fluxo do usuário.
+
+### Security
+
+- **Fail-Closed Client Security (SB005-03 / CWE-285):** Interface protegida contra disparos acidentais ou não autorizados de requisições de chat sem credenciais válidas.
+- **Mitigação de Exposição de Infraestrutura (SB005-02 / CWE-200):** Eliminação da manipulação manual de endpoints de autenticação no cliente visual.
+- **Eliminação de Credenciais Embutidas (SB005-01 / CWE-798):** Erradicação de valores padrão embutidos no DOM inicial.
+
+### Added
+
+- **Suíte de Testes Automatizados de UI e Segurança (TESTB005):**
+  - Criação do arquivo de testes de integração e reprodução `tests/integration/test_auth_modal_ui_incident_b005.py` com 6 testes automatizados cobrindo ausência de credenciais default, ocultação de URL, bloqueio inicial, logout reativo e contingência para 401 Unauthorized.
+- **Artefatos de Governança ADD:** Inclusão das especificações `B005-initial-auth-modal-and-chat-locking.md`, `SB005-initial-auth-modal-and-chat-locking.md`, `TESTB005-initial-auth-modal-and-chat-locking.md` e `QB005-initial-auth-modal-and-chat-locking.md`.
+
 ## [1.13.0] - 2026-08-31
 
 ### Removed

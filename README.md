@@ -17,7 +17,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
    - **10 Domain Tools Determinísticas:** Métricas críticas de negócio (ex: produto mais vendido, SLA logístico, impacto de promoções, déficit de receita, elasticidade) utilizam pushdown de agregação SQL no DuckDB e formatação pura de domínio, imunes a alucinações matemáticas de LLMs.
    - **Secured SQL Fallback Tool com AST Parsing (`sqlglot`):** Perguntas analíticas *ad-hoc* não previstas no catálogo de domínio são roteadas para uma ferramenta de consulta SQL com validação gramatical via Árvore de Sintaxe Abstrata (AST), eliminando falsos positivos em literais de texto e bloqueando mutações em qualquer profundidade da árvore sintática.
 2. **Microsserviço de Autenticação Assimétrica JWT Zero Trust (`auth-service/`):** Arquitetura desacoplada onde um microsserviço independente detém com exclusividade a chave privada RSA-2048 (`RS256`), emitindo tokens com validação de credenciais em tempo constante (`hmac.compare_digest`). O Sales Agent valida tokens offline em sub-milissegundo (< 0.5ms) via chave pública em cache, eliminando riscos de forja de tokens mesmo em caso de comprometimento dos pods analíticos.
-3. **Interface Web Premium (FastAPI + Vanilla JS):** Acesso democratizado aos dados de vendas através de um frontend moderno (Dark Mode, layout responsivo) comunicando-se com a API REST de forma assíncrona com suporte a autenticação Bearer.
+3. **Interface Web Premium & Fail-Closed Zero Trust (FastAPI + Vanilla JS):** Acesso aos dados de vendas através de um frontend moderno (Dark Mode, layout responsivo) comunicando-se com a API REST de forma assíncrona. Postura *Fail-Closed* por padrão: os controles de chat iniciam bloqueados (`disabled`), disparando a modal de autenticação interativa automaticamente no carregamento para obtenção do token JWT assinado (`RS256`), com reautenticação transparente na expiração de sessão (HTTP 401) e proteção rigorosa contra exposição de credenciais ou topologia interna na UI (B005 / SB005).
 4. **DuckDB In-Process (OLAP Pushdown Aggregations):** Mecanismo colunar vetorizado para processamento analítico de sub-segundo em memória. Cálculos matemáticos (`SUM`, `AVG`, `FILTER`, `GROUP BY`) são executados nativamente via SQL no C++ do DuckDB, mantendo consumo de memória O(1) e eliminando riscos de Out-of-Memory (OOM) para datasets com 50M+ registros.
 5. **Arquitetura Hexagonal (Ports & Adapters):** O núcleo de domínio (regras matemáticas, modelos e segurança) possui zero acoplamento com LangChain, DuckDB, FastAPI ou bibliotecas criptográficas externas.
 6. **LLM Agnóstico:** Suporte plug-and-play para múltiplos provedores (OpenAI, Anthropic, Google Gemini) via variáveis de ambiente (`.env`).
@@ -660,6 +660,9 @@ python -m pytest tests/unit/test_auth_domain.py tests/unit/test_jwt_token_adapte
 
 # Executa o teste de integração End-to-End multi-container
 python -m pytest tests/integration/test_jwt_auth_e2e.py -v
+
+# Executa os testes de interface web, bloqueio de chat e segurança de login (B005 / SB005 / TESTB005)
+python -m pytest tests/integration/test_auth_modal_ui_incident_b005.py -v
 ```
 
 ---
@@ -667,6 +670,7 @@ python -m pytest tests/integration/test_jwt_auth_e2e.py -v
 ## 🔒 Segurança e Confiabilidade
 
 - **Segregação Criptográfica Assimétrica (Zero Trust / NIST SP 800-207):** A chave privada RSA-2048 reside exclusivamente dentro do contêiner da Auth Service. O Sales Agent possui apenas o cliente `HttpPublicKeyProvider`, recebendo exclusivamente a chave pública.
+- **Postura Fail-Closed no Cliente Web & Proteção de Credenciais (OWASP ASVS / SB005 / B005):** A interface web adota uma postura estritamente *Fail-Closed* bloqueando o input e envio de mensagens no HTML/JS até a aquisição de um token JWT válido; aciona a modal de login interativa no startup quando desautenticada; mitiga CWE-798 eliminando credenciais padrão do HTML estático em favor de placeholders e atributos semânticos (`autocomplete`); mitiga CWE-200 encapsulando endpoints internos de microsserviços fora da manipulação do DOM; e reage deterministicamente a erros HTTP 401 invalidando a sessão e retendo mensagens pendentes para continuidade transparente após reautenticação.
 - **Proteção contra Confusão de Algoritmo (CWE-347):** Restrição obrigatória a `algorithms=["RS256"]` na decodificação com PyJWT, impedindo bypass por algoritmo `none` ou transmutação de chave pública RSA em segredo simétrico HMAC.
 - **Mitigação de Timing Attacks (CWE-208):** Comparação em tempo constante via `hmac.compare_digest()` para todas as verificações de credenciais de login.
 - **Prevenção de Injeção SQL & AST Guardrails:** A ferramenta `secured_sql_query` analisa consultas estruturalmente via AST (`sqlglot`) no dialeto DuckDB, bloqueando comandos mutacionais em qualquer profundidade e isolando literais de texto.

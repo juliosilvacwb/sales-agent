@@ -86,6 +86,12 @@ body {
     background-color: #10b981;
     border-radius: 50%;
     box-shadow: 0 0 8px #10b981;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.status-indicator.unauthenticated {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
 }
 
 .chat-container {
@@ -302,11 +308,23 @@ body {
     transition: background-color 0.3s, transform 0.1s;
 }
 
-.send-btn:hover {
+#chat-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #475569;
+    pointer-events: none;
+}
+
+.send-btn:hover:not(:disabled) {
     background: var(--accent-hover);
 }
 
-.send-btn:active {
+.send-btn:active:not(:disabled) {
     transform: scale(0.95);
 }
 

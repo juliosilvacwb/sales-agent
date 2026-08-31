@@ -1,10 +1,15 @@
 document.addEventListener("DOMContentLoaded", () => {
     const chatForm = document.getElementById("chat-form");
     const chatInput = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("send-btn");
     const chatMessages = document.getElementById("chat-messages");
     const typingIndicator = document.getElementById("typing-indicator");
     const errorBanner = document.getElementById("error-banner");
     
+    // Status elements
+    const agentStatusText = document.getElementById("agent-status-text");
+    const statusIndicator = document.querySelector(".status-indicator");
+
     // Auth elements
     const authBtn = document.getElementById("auth-btn");
     const authBtnLabel = document.getElementById("auth-btn-label");
@@ -13,10 +18,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const loginForm = document.getElementById("login-form");
     const authUsernameInput = document.getElementById("auth-username");
     const authPasswordInput = document.getElementById("auth-password");
-    const authUrlInput = document.getElementById("auth-url");
     const loginErrorMsg = document.getElementById("login-error-msg");
     const logoutBtn = document.getElementById("logout-btn");
     const loginSubmitBtn = document.getElementById("login-submit-btn");
+
+    // Internal Auth Service URL configuration
+    const AUTH_SERVICE_URL = window.AUTH_SERVICE_URL || "http://localhost:8001";
 
     // Initialize or retrieve session ID
     let sessionId = sessionStorage.getItem("chat_session_id");
@@ -51,11 +58,19 @@ document.addEventListener("DOMContentLoaded", () => {
             authBtnLabel.textContent = `🔑 ${username}`;
             logoutBtn.style.display = "inline-block";
             loginSubmitBtn.textContent = "Renovar Token";
+            if (chatInput) chatInput.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
+            if (agentStatusText) agentStatusText.textContent = "Online";
+            if (statusIndicator) statusIndicator.classList.remove("unauthenticated");
         } else {
             authBtn.classList.remove("authenticated");
             authBtnLabel.textContent = "Autenticar";
             logoutBtn.style.display = "none";
             loginSubmitBtn.textContent = "Entrar e Obter Token";
+            if (chatInput) chatInput.disabled = true;
+            if (sendBtn) sendBtn.disabled = true;
+            if (agentStatusText) agentStatusText.textContent = "Não autenticado";
+            if (statusIndicator) statusIndicator.classList.add("unauthenticated");
         }
     }
 
@@ -67,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
             loginErrorMsg.style.display = "none";
         }
         authModal.style.display = "flex";
-        authUsernameInput.focus();
+        if (authUsernameInput) authUsernameInput.focus();
     }
 
     function closeModal() {
@@ -97,7 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const username = authUsernameInput.value.trim();
         const password = authPasswordInput.value;
-        const authUrl = authUrlInput.value.trim().replace(/\/+$/, "");
+        const authUrl = AUTH_SERVICE_URL.replace(/\/+$/, "");
 
         try {
             const response = await fetch(`${authUrl}/auth/login`, {
@@ -220,6 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (response.status === 401) {
                 typingIndicator.style.display = "none";
                 pendingMessage = message;
+                setJwtToken(null);
                 openModal("Autenticação necessária. Por favor, entre com suas credenciais para continuar.");
                 return;
             }
@@ -264,4 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize Auth UI state
     updateAuthUI();
+
+    // Automatically prompt authentication modal if no JWT token exists
+    if (!getJwtToken()) {
+        openModal();
+    }
 });
