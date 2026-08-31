@@ -9,28 +9,28 @@ from src.adapter.inbound.llm.sales_agent import DATA_QUERY_TOOLS, ToolTrackingCa
 def test_tool_tracking_callback_handler_fail_closed_on_unresolved_tool_name():
     """[S013-01 / CWE-1188] Assert that on_tool_end with missing/None tool_name remains fail-closed (False)."""
     handler = ToolTrackingCallbackHandler()
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     # Dispatch tool end with None tool_name and empty kwargs/serialized
     handler.on_tool_end(output="any output", name=None)
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     # Dispatch tool start with empty serialized dict
     handler.on_tool_start(serialized={}, input_str="{}")
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
 
 def test_tool_tracking_callback_handler_fail_closed_on_empty_data_tools_whitelist():
     """[S013-02 / CWE-184] Assert that an empty data_tools collection never flags queries as True."""
     handler = ToolTrackingCallbackHandler(data_tools=[])
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     # Dispatch known domain tool when whitelist is explicitly empty
     handler.on_tool_start(serialized={"name": "get_top_selling_product"}, input_str="{}")
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
     handler.on_tool_end(output="{}", name="get_top_selling_product")
-    assert handler.has_queried_data is False
+    assert not handler.has_queried_data
 
 
 def test_tool_tracking_callback_handler_flags_true_only_for_whitelisted_data_tools():
@@ -48,4 +48,4 @@ def test_tool_tracking_callback_handler_flags_true_only_for_whitelisted_data_too
 
     handler_end = ToolTrackingCallbackHandler()
     handler_end.on_tool_end(output="Product_0001", name="get_top_selling_product")
-    assert handler_end.has_queried_data is True
+    assert handler_end.has_queried_data
