@@ -4,6 +4,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatMessages = document.getElementById("chat-messages");
     const typingIndicator = document.getElementById("typing-indicator");
     const errorBanner = document.getElementById("error-banner");
+    
+    // Auth elements
+    const authBtn = document.getElementById("auth-btn");
+    const authBtnLabel = document.getElementById("auth-btn-label");
+    const authModal = document.getElementById("auth-modal");
+    const modalCloseBtn = document.getElementById("modal-close-btn");
+    const loginForm = document.getElementById("login-form");
+    const authUsernameInput = document.getElementById("auth-username");
+    const authPasswordInput = document.getElementById("auth-password");
+    const authUrlInput = document.getElementById("auth-url");
+    const loginErrorMsg = document.getElementById("login-error-msg");
+    const logoutBtn = document.getElementById("logout-btn");
+    const loginSubmitBtn = document.getElementById("login-submit-btn");
 
     // Initialize or retrieve session ID
     let sessionId = sessionStorage.getItem("chat_session_id");
@@ -11,6 +24,116 @@ document.addEventListener("DOMContentLoaded", () => {
         sessionId = crypto.randomUUID();
         sessionStorage.setItem("chat_session_id", sessionId);
     }
+
+    let pendingMessage = null;
+
+    // JWT Token Management
+    function getJwtToken() {
+        return sessionStorage.getItem("jwt_access_token");
+    }
+
+    function setJwtToken(token, username) {
+        if (token) {
+            sessionStorage.setItem("jwt_access_token", token);
+            sessionStorage.setItem("jwt_auth_user", username || "admin");
+        } else {
+            sessionStorage.removeItem("jwt_access_token");
+            sessionStorage.removeItem("jwt_auth_user");
+        }
+        updateAuthUI();
+    }
+
+    function updateAuthUI() {
+        const token = getJwtToken();
+        const username = sessionStorage.getItem("jwt_auth_user") || "admin";
+        if (token) {
+            authBtn.classList.add("authenticated");
+            authBtnLabel.textContent = `🔑 ${username}`;
+            logoutBtn.style.display = "inline-block";
+            loginSubmitBtn.textContent = "Renovar Token";
+        } else {
+            authBtn.classList.remove("authenticated");
+            authBtnLabel.textContent = "Autenticar";
+            logoutBtn.style.display = "none";
+            loginSubmitBtn.textContent = "Entrar e Obter Token";
+        }
+    }
+
+    function openModal(errorMessage = null) {
+        if (errorMessage) {
+            loginErrorMsg.textContent = errorMessage;
+            loginErrorMsg.style.display = "block";
+        } else {
+            loginErrorMsg.style.display = "none";
+        }
+        authModal.style.display = "flex";
+        authUsernameInput.focus();
+    }
+
+    function closeModal() {
+        authModal.style.display = "none";
+        loginErrorMsg.style.display = "none";
+    }
+
+    // Modal Event Listeners
+    authBtn.addEventListener("click", () => openModal());
+    modalCloseBtn.addEventListener("click", closeModal);
+    authModal.addEventListener("click", (e) => {
+        if (e.target === authModal) {
+            closeModal();
+        }
+    });
+
+    logoutBtn.addEventListener("click", () => {
+        setJwtToken(null);
+        closeModal();
+    });
+
+    loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        loginErrorMsg.style.display = "none";
+        loginSubmitBtn.disabled = true;
+        loginSubmitBtn.textContent = "Autenticando...";
+
+        const username = authUsernameInput.value.trim();
+        const password = authPasswordInput.value;
+        const authUrl = authUrlInput.value.trim().replace(/\/+$/, "");
+
+        try {
+            const response = await fetch(`${authUrl}/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ detail: "Credenciais inválidas" }));
+                throw new Error(errData.detail || "Falha na autenticação");
+            }
+
+            const data = await response.json();
+            setJwtToken(data.access_token, username);
+            closeModal();
+
+            // If there was a pending message, send it now
+            if (pendingMessage) {
+                const msg = pendingMessage;
+                pendingMessage = null;
+                sendMessage(msg);
+            }
+        } catch (err) {
+            loginErrorMsg.textContent = err.message || "Erro ao conectar com o serviço de autenticação.";
+            loginErrorMsg.style.display = "block";
+        } finally {
+            loginSubmitBtn.disabled = false;
+            updateAuthUI();
+        }
+    });
 
     // Configure marked options
     if (typeof marked !== "undefined" && marked.setOptions) {
@@ -73,11 +196,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
+            const headers = {
+                "Content-Type": "application/json"
+            };
+
+            const token = getJwtToken();
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
             const response = await fetch("/chat", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: headers,
                 body: JSON.stringify({
                     message: message,
                     session_id: sessionId
@@ -86,6 +216,13 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             clearTimeout(timeoutId);
+
+            if (response.status === 401) {
+                typingIndicator.style.display = "none";
+                pendingMessage = message;
+                openModal("Autenticação necessária. Por favor, entre com suas credenciais para continuar.");
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error("API returned an error");
@@ -124,4 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sendMessage(message);
         }
     });
+
+    // Initialize Auth UI state
+    updateAuthUI();
 });

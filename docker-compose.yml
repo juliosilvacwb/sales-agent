@@ -43,7 +43,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - AUTH_ENABLED=true
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
       - AUTH_SERVICE_URL=http://auth-service:8001
       - SESSION_STORE=redis
       - REDIS_URL=redis://redis:6379/0

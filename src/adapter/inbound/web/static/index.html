@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Data Analysis Agent</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=1.1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" crossorigin="anonymous">
@@ -22,9 +22,18 @@
                 </svg>
                 <h1>Sales Agent</h1>
             </div>
-            <div class="header-status">
-                <span class="status-indicator"></span>
-                <span>Online</span>
+            <div class="header-actions">
+                <div class="header-status">
+                    <span class="status-indicator"></span>
+                    <span id="agent-status-text">Online</span>
+                </div>
+                <button id="auth-btn" class="auth-btn" title="Gerenciar Autenticação JWT">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span id="auth-btn-label">Autenticar</span>
+                </button>
             </div>
         </header>
 
@@ -61,6 +70,37 @@
             </div>
         </footer>
     </div>
-    <script src="app.js"></script>
+    
+    <!-- Login Modal -->
+    <div id="auth-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>🔐 Autenticação Zero Trust</h2>
+                <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+            </div>
+            <form id="login-form" class="modal-body">
+                <p class="modal-desc">Faça login no <strong>Auth Service</strong> para obter seu token JWT assinado com RSA-2048.</p>
+                <div class="form-group">
+                    <label for="auth-username">Usuário</label>
+                    <input type="text" id="auth-username" value="admin" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">Senha</label>
+                    <input type="password" id="auth-password" value="changeme" required autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="auth-url">Auth Service URL</label>
+                    <input type="text" id="auth-url" value="http://localhost:8001" required>
+                </div>
+                <div id="login-error-msg" class="login-error-msg" style="display: none;"></div>
+                <div class="modal-actions">
+                    <button type="button" id="logout-btn" class="secondary-btn" style="display: none;">Encerrar Sessão</button>
+                    <button type="submit" id="login-submit-btn" class="primary-btn">Entrar e Obter Token</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="app.js?v=1.1.0"></script>
 </body>
 </html>
