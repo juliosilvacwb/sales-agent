@@ -548,6 +548,68 @@ python -m src.adapter.inbound.cli.main
 
 ---
 
+## 🐳 Build, Execução e Publicação com Docker & Docker Hub
+
+O ecossistema do projeto é composto por dois contêineres principais (`sales-agent` e `auth-service`) e um backing store (`redis`).
+
+### 1. Execução Multi-Contêiner com Docker Compose
+
+Para subir todos os serviços integrados localmente com orquestração automática e healthchecks:
+
+```bash
+# 1. Configurar variáveis de ambiente
+cp .env.example .env
+# Preencha sua OPENAI_API_KEY no arquivo .env
+
+# 2. Construir e subir todos os serviços em background
+docker compose up --build -d
+
+# 3. Verificar o status e healthcheck dos contêineres
+docker compose ps
+
+# 4. Acompanhar logs
+docker compose logs -f
+```
+
+---
+
+### 2. Build das Imagens Docker
+
+Para compilar as imagens isoladamente com tags locais ou de repositório:
+
+```bash
+# Build da imagem do Sales Data Analysis Agent
+docker build -t juliosilvacwb/sales-agent:latest -f Dockerfile .
+
+# Build da imagem do Microsserviço de Autenticação
+docker build -t juliosilvacwb/auth-service:latest -f auth-service/Dockerfile .
+```
+
+---
+
+### 3. Autenticação e Push para o Docker Hub
+
+Para publicar as versões compiladas no [Docker Hub](https://hub.docker.com/u/juliosilvacwb):
+
+```bash
+# 1. Autenticar na conta do Docker Hub
+docker login
+
+# 2. Publicar a tag latest do Sales Agent
+docker push juliosilvacwb/sales-agent:latest
+
+# 3. Publicar a tag latest do Auth Service
+docker push juliosilvacwb/auth-service:latest
+
+# (Opcional) Publicar tags versionadas (SemVer)
+docker tag juliosilvacwb/sales-agent:latest juliosilvacwb/sales-agent:v1.0.0
+docker tag juliosilvacwb/auth-service:latest juliosilvacwb/auth-service:v1.0.0
+docker push juliosilvacwb/sales-agent:v1.0.0
+docker push juliosilvacwb/auth-service:v1.0.0
+```
+
+---
+
 ## ☸️ Orquestração Kubernetes / K3s (Topologia de Produção)
 
 O projeto inclui manifestos declarativos prontos para produção na pasta `k8s/`:
