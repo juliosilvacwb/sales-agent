@@ -29,6 +29,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 12. **Perfilamento Dinâmico de Dados e Injeção de Contexto (T011 / R011 / S011):** Inspeção de metadados read-only em tempo de inicialização (startup) no DuckDB com detecção de valores sentinela literais (ex: `'None'`), colunas invariantes (`service_level`) e limites temporais/cardinalidade. Síntese do bloco `### DYNAMIC DATA INSIGHTS:` injetado no `SYSTEM_PROMPT` com sanitização contra Indirect Prompt Injection, orientando o LLM a emitir filtros de igualdade estrita (`WHERE promotion_type = 'None'`) sem mutação dos dados brutos (BR01).
 13. **Tipagem Estática Estrita & Qualidade de Código (T012 / R012 / S012 / TEST012):** Transição de tipagem dinâmica para MyPy em modo estrito (`strict = true`) em 100% da base de código (`src/`), eliminando erros de runtime (`TypeError`, `NoneType` dereferences) e impondo padronização determinística com o linter/formatador **Ruff** (sub-1s). Configuração unificada no `pyproject.toml`, segregação de dependências de desenvolvimento (`requirements-dev.txt`) para hardening de supply chain em contêineres e Quality Gate bloqueante no GitHub Actions (`.github/workflows/ci-cd.yml`) sob o princípio do menor privilégio (`permissions: contents: read`).
 14. **Rastreamento de Grounding e Selo de Dados Verificados (T013 / R013 / S013 / TEST013):** Interceptação de ferramentas em tempo real via LangChain `BaseCallbackHandler` (`ToolTrackingCallbackHandler`) com isolamento estrito por turno conversacional (`request-scoped`). Enriquecimento automático do `ChatResponseDTO` com a flag booleana `data_queried: true` quando ferramentas analíticas de domínio ou fallback SQL são executadas, e renderização dinâmica do selo de confiança acessível `✅ Dados Verificados` na interface Web Chat com defesa contra UI spoofing e sanitização DOMPurify.
+15. **Máquina de Estados e Orquestração Avançada com LangGraph (T014 / R014 / S014 / TEST014):** Migração do motor cognitivo do agente de um executor linear (`AgentExecutor`) para uma máquina de estados direcionada determinística (`StateGraph` e `MessagesState`). Topologia desacoplada em nós `call_model` e `tools` (`ToolNode`), roteamento condicional determinístico (`should_continue`) e aresta cíclica incondicional para autorrecuperação autônoma (`tools -> agent`), com teto estrito de recursão (`recursion_limit: 10`), captura graciosa de `GraphRecursionError` e inspeção de estado blindada contra a whitelist `DATA_QUERY_TOOLS` com 100% de isolamento no adaptador de entrada.
 
 ---
 
@@ -315,6 +316,26 @@ sequenceDiagram
 
 ---
 
+### 🔄 Fluxo de Orquestração com Máquina de Estados LangGraph (`StateGraph`)
+
+```mermaid
+graph TD
+    StartNode([START]) --> AgentNode["Nó 'agent'<br>(call_model: ChatModel + Tool Binding)"]
+    AgentNode --> DecisionGate{"should_continue<br>(has tool_calls?)"}
+    DecisionGate -- "Sim (tool_calls presentes)" --> ToolsNode["Nó 'tools'<br>(ToolNode: 10 Domain Tools + SQL Fallback)"]
+    DecisionGate -- "Não (Resposta Final / Saudação)" --> EndNode([END])
+    ToolsNode -->|Aresta Cíclica: Injeta ToolMessages| AgentNode
+
+    classDef graphNode fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+    classDef decisionNode fill:#0f172a,stroke:#eab308,stroke-width:2px,color:#f8fafc;
+    classDef terminalNode fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+    class AgentNode,ToolsNode graphNode;
+    class DecisionGate decisionNode;
+    class StartNode,EndNode terminalNode;
+```
+
+---
+
 ## 🛠️ Catálogo de Ferramentas de Domínio (Domain Tools)
 
 | Ferramenta | Identificador | Descrição de Negócio |
@@ -348,11 +369,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R013)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T013)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S013)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST013)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q013)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R014)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T014)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S014)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST014)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q014)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)
@@ -561,7 +582,7 @@ kubectl get svc
 
 ## 🧪 Executando os Testes e Análise Estática
 
-O repositório possui **330+ testes automatizados** e pipelines rigorosos de análise estática e formatação cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração, suite de Golden Evals e tipagem estrita:
+O repositório possui **430+ testes automatizados** e pipelines rigorosos de análise estática e formatação cobrindo todas as camadas de domínio, casos de uso, adaptadores, fluxos de integração, suite de Golden Evals, tipagem estrita e orquestração de grafos LangGraph:
 
 ```bash
 # Executa a checagem de estilo e formatação com Ruff
@@ -573,6 +594,9 @@ mypy src/
 
 # Executa a suíte completa de testes unitários e de integração
 python -m pytest
+
+# Executa a suíte de orquestração com máquina de estados LangGraph (T014 / R014 / S014 / TEST014)
+python -m pytest tests/integration/test_sales_agent.py -v
 
 # Executa os testes de rastreamento de ferramentas e isolamento por turno (T013 / R013 / S013 / TEST013)
 python -m pytest tests/integration/test_data_queried_flag.py -v
@@ -609,4 +633,5 @@ python -m pytest tests/integration/test_jwt_auth_e2e.py -v
 - **Defesa contra Indirect Prompt Injection em Metadados Dinâmicos (OWASP LLM01 / S011 / CWE-20):** Sanitização linear rigorosa de quebras de linha (`\r`, `\n`, `\t`), neutralização de marcadores de cabeçalho Markdown (`###`) e imposição de limites de tamanho em metadados extraídos do dataset antes da interpolação no prompt do sistema agêntico.
 - **Supply Chain Security & Hardening de CI/CD (OWASP CICD-SEC-01, CICD-SEC-03, CICD-SEC-05 / S012):** Segregação rigorosa de dependências de desenvolvimento em `requirements-dev.txt`, mantendo contêineres de produção enxutos e imunes à inclusão de compiladores ou linters desnecessários; erradicação de supressões cegas de tipagem em módulos de autenticação e criptografia (`jwt.*`, `cryptography.*`); aplicação de type narrowing defensivo nas fronteiras de adaptadores externos (`sql_fallback_tool.py`, `redis_session_adapter.py`); e imposição do princípio do menor privilégio (`permissions: contents: read`) no workflow do GitHub Actions.
 - **Grounding Factual, Fail-Closed Callback e Mitigação de UI Spoofing (OWASP LLM09 / S013 / CWE-1188 / CWE-79):** Interceptação estritamente fail-closed em `ToolTrackingCallbackHandler` exigindo correspondência explícita na whitelist `data_tools`, isolamento request-scoped prevenindo vazamento de estado entre turnos conversacionais (ADR-02), e defesa contra spoofing no frontend garantindo que selos forjados em Markdown sejam purgados via `DOMPurify` e inseridos unicamente pela propriedade tipada `data_queried === true`.
+- **Contenção de DoS e Proteção de Loops em Grafo (OWASP LLM04 / S014 / CWE-400 / CWE-835):** Imposição imutável de `recursion_limit: 10` na execução da máquina de estados LangGraph, captura graciosa de `GraphRecursionError` entregando `FALLBACK_ERROR_MESSAGE` sem crash de processo, sanitização de caminhos absolutos do host em manipuladores de erro de ferramentas (`[PATH_REDACTED]`), e higienização defensiva de tipos no histórico conversacional externo.
 

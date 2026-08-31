@@ -80,7 +80,7 @@ class DuckDbSalesAdapter(SalesDataPort):
             CAST(planned_price AS DOUBLE) AS planned_price,
             CAST(actual_price AS DOUBLE) AS actual_price,
             CAST(service_level AS DOUBLE) AS service_level,
-            NULLIF(NULLIF(TRIM(CAST(promotion_type AS VARCHAR)), 'None'), '') AS promotion_type
+            CAST(promotion_type AS VARCHAR) AS promotion_type
         FROM read_csv_auto('{escaped_path}', delim=';', header=True)
         """
         self._connection.execute(query)

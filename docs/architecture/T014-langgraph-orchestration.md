@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R014-langgraph-orchestration.md](../business-requirements/R014-langgraph-orchestration.md)
+- **Test Coverage:** [TEST014-langgraph-orchestration.md](../tests/TEST014-langgraph-orchestration.md)
+- **Security Audit:** [S014-langgraph-orchestration.md](../security/S014-langgraph-orchestration.md)
 
 ## Technical Goal
 
@@ -42,21 +44,21 @@ Migrate the Sales Data Analysis Agent's cognitive engine from LangChain's legacy
 
 #### Phase 1 tasks (all parallel-safe)
 
-- [ ] Task 001 - [Config]: Ensure `langgraph` dependency exists (Depends On: —)
-- [ ] Task 002 - [Adapter-Web]: Implement discrete graph nodes (`call_model`, `tools`) (Depends On: Task 001)
+- [COMPLETED] Task 001 - [Config]: Ensure `langgraph` dependency exists (Depends On: —)
+- [COMPLETED] Task 002 - [Adapter-Web]: Implement discrete graph nodes (`call_model`, `tools`) (Depends On: Task 001)
 
 ### 🟡 Phase 2 — Graph Assembly and Routing (Depends on Phase 1)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 003 - [Adapter-Web]: Implement conditional routing and compile `StateGraph` (Depends On: Task 002)
+- [COMPLETED] Task 003 - [Adapter-Web]: Implement conditional routing and compile `StateGraph` (Depends On: Task 002)
 
 ### 🟢 Phase 3 — Agent Integration and Validation (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 004 - [Adapter-Web]: Refactor `SalesAgent` orchestration and state extraction (Depends On: Task 003)
-- [ ] Task 005 - [Test-Integration]: Validate cyclic execution and backwards compatibility (Depends On: Task 004)
+- [COMPLETED] Task 004 - [Adapter-Web]: Refactor `SalesAgent` orchestration and state extraction (Depends On: Task 003)
+- [COMPLETED] Task 005 - [Test-Integration]: Validate cyclic execution and backwards compatibility (Depends On: Task 004)
 
 ## Task Detailing (Summary Tasks)
 

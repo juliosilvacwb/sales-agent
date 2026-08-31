@@ -1,14 +1,16 @@
-"""Sales Agent Orchestrator with System Prompt and Tool Routing."""
+"""Sales Agent Orchestrator with LangGraph State Machine and Tool Routing."""
 import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence, Set
 
-from langchain.agents import create_agent
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, ToolException
+from langgraph.errors import GraphRecursionError
+from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode
 
 from src.domain.model.dataset_profile import DatasetProfile
 
@@ -77,12 +79,18 @@ def build_system_prompt(
     return f"{base_prompt.rstrip()}\n\n{insights_block}"
 
 
-def _handle_tool_error(error: ToolException) -> str:
-    """Custom error handler for tool exceptions that logs telemetry and returns error feedback."""
-    err_msg = str(error.args[0]) if error.args else str(error)
-    sanitized_log = re.sub(r"[\r\n\t]+", " ", str(error)).strip()
-    logger.warning("[AGENT_SELF_CORRECTION] Tool execution failed. Providing feedback to agent. Error: %s", sanitized_log)
-    return err_msg
+def _handle_tool_error(error: Exception) -> str:
+    """Custom error handler for tool exceptions that logs telemetry and returns sanitized error feedback."""
+    raw_msg = str(error.args[0]) if getattr(error, "args", None) else str(error)
+    # Sanitize file system paths (Windows and Unix-like)
+    sanitized_msg = re.sub(r"[A-Za-z]:\\[^\s\r\n\'\",;:]+", "[PATH_REDACTED]", raw_msg)
+    sanitized_msg = re.sub(r"(?:/[a-zA-Z0-9._-]+)+", "[PATH_REDACTED]", sanitized_msg)
+    sanitized_log = re.sub(r"[\r\n\t]+", " ", sanitized_msg).strip()
+    logger.warning(
+        "[AGENT_SELF_CORRECTION] Tool execution failed. Providing feedback to agent. Error: %s",
+        sanitized_log,
+    )
+    return sanitized_msg
 
 
 DATA_QUERY_TOOLS: Set[str] = {
@@ -105,7 +113,9 @@ class ToolTrackingCallbackHandler(BaseCallbackHandler):
 
     def __init__(self, data_tools: Optional[Sequence[str]] = None) -> None:
         super().__init__()
-        self.data_tools: Set[str] = set(data_tools) if data_tools is not None else set(DATA_QUERY_TOOLS)
+        self.data_tools: Set[str] = (
+            set(data_tools) if data_tools is not None else set(DATA_QUERY_TOOLS)
+        )
         self.has_queried_data: bool = False
         self._executed_tools: List[str] = []
 
@@ -187,8 +197,60 @@ class AgentResult:
         return self.response.strip(chars)
 
 
+def should_continue(state: MessagesState) -> str:
+    """Evaluates the last message in state and routes to 'tools' if tool_calls exist, else END."""
+    messages = state.get("messages", []) if isinstance(state, dict) else getattr(state, "messages", [])
+    if not messages:
+        return END
+    last_message = messages[-1]
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
+    return END
+
+
+def create_sales_graph(
+    model: BaseChatModel,
+    tools: Sequence[BaseTool],
+    system_prompt: Optional[str] = None,
+) -> Any:
+    """Builds and compiles a LangGraph StateGraph state machine for sales analysis orchestration."""
+    model_with_tools = (
+        model.bind_tools(tools)
+        if hasattr(model, "bind_tools") and callable(model.bind_tools)
+        else model
+    )
+
+    def call_model(state: MessagesState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+        messages = state["messages"]
+        response = model_with_tools.invoke(messages, config=config)
+        return {"messages": [response]}
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("agent", call_model)
+    builder.add_node("tools", ToolNode(tools, handle_tool_errors=_handle_tool_error))
+
+    builder.add_edge(START, "agent")
+    builder.add_conditional_edges(
+        "agent",
+        should_continue,
+        {"tools": "tools", END: END},
+    )
+    builder.add_edge("tools", "agent")
+
+    return builder.compile()
+
+
+def create_agent(
+    model: BaseChatModel,
+    tools: Sequence[BaseTool],
+    system_prompt: Optional[str] = None,
+) -> Any:
+    """Compatibility wrapper and alias for create_sales_graph."""
+    return create_sales_graph(model=model, tools=tools, system_prompt=system_prompt)
+
+
 class SalesAgent:
-    """Orchestrator for the Sales Analysis conversational agent."""
+    """Orchestrator for the Sales Analysis conversational agent using LangGraph."""
 
     def __init__(
         self,
@@ -202,7 +264,7 @@ class SalesAgent:
         self._llm = llm
         self._max_history_messages = max(2, max_history_messages)
         self._chat_history: List[BaseMessage] = []
-        
+
         # Configure tool error handlers for telemetry and self-correction
         self._tools: List[BaseTool] = []
         for t in tools:
@@ -231,7 +293,7 @@ class SalesAgent:
         callbacks: Optional[Sequence[BaseCallbackHandler]] = None,
     ) -> AgentResult:
         """Executes the agent on the given question and returns the answer with grounding metadata.
-        
+
         Args:
             question: The user input query.
             chat_history: Optional external conversational history (e.g. from SessionStorePort).
@@ -240,25 +302,50 @@ class SalesAgent:
             AgentResult containing the response text and the data_queried boolean flag.
         """
         logger.info("Agent received user query: '%s'", question)
-        history = list(chat_history) if chat_history is not None else self._chat_history
-        messages = history + [HumanMessage(content=question)]
-        
+
+        # Sanitize and validate external chat history (S014-04)
+        sanitized_history: List[BaseMessage] = []
+        if chat_history is not None:
+            for idx, msg in enumerate(chat_history):
+                if isinstance(msg, BaseMessage):
+                    sanitized_history.append(msg)
+                else:
+                    logger.warning(
+                        "Discarding invalid chat_history element at index %d of type %s",
+                        idx,
+                        type(msg).__name__,
+                    )
+            history = sanitized_history
+        else:
+            history = self._chat_history
+
+        system_msg = SystemMessage(content=self._system_prompt)
+        input_messages = [system_msg] + history + [HumanMessage(content=question)]
+
         tracking_handler = ToolTrackingCallbackHandler()
         turn_callbacks: List[BaseCallbackHandler] = [tracking_handler]
         if callbacks:
             turn_callbacks.extend(callbacks)
 
         config: RunnableConfig = {
-            "recursion_limit": 8,
+            "recursion_limit": 10,
             "callbacks": turn_callbacks,
         }
 
         try:
-            result = self._executor.invoke({"messages": messages}, config=config)
-            output = str(result["messages"][-1].content)
-            data_queried = tracking_handler.has_queried_data
-        except Exception as e:
-            logger.error("Agent execution failed or retry ceiling exceeded: %s", e, exc_info=True)
+            result = self._executor.invoke({"messages": input_messages}, config=config)
+            final_message = result["messages"][-1]
+            output = str(final_message.content) if hasattr(final_message, "content") else str(final_message)
+
+            # Enforce whitelist validation on ToolMessage inspection for response grounding (S014-01)
+            has_tool_message = any(
+                isinstance(m, ToolMessage)
+                and getattr(m, "name", None) in DATA_QUERY_TOOLS
+                for m in result.get("messages", [])
+            )
+            data_queried = has_tool_message or tracking_handler.has_queried_data
+        except (GraphRecursionError, Exception) as e:
+            logger.error("Agent execution failed or recursion ceiling exceeded: %s", e, exc_info=True)
             output = FALLBACK_ERROR_MESSAGE
             data_queried = False
 

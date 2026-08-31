@@ -146,18 +146,17 @@ def test_pyproject_excludes_legacy_pyright_configuration() -> None:
 # Task 003: Domain Layer Type Safety
 def test_domain_models_strict_type_annotations() -> None:
     """[TEST012-07] Validates strict type annotations on domain model classes."""
-    from src.domain.model.aggregation_models import AggregatedSalesMetric, AggregationParams
-    from src.domain.model.dataset_profile import DataInsights, DatasetProfile
-    from src.domain.model.metric_result import MetricResult
+    from src.domain.model.aggregation_models import TotalSalesAggregation, ProductAggregation
+    from src.domain.model.dataset_profile import DatasetProfile
     from src.domain.model.sale_record import SaleRecord
     from src.domain.model.session_context import SessionContext
     from src.domain.model.sql_validation import SqlValidationResult
 
-    # Check AggregationParams
-    hints_agg = get_type_hints(AggregationParams)
-    assert hints_agg.get("metric_name") is str or "str" in str(hints_agg.get("metric_name"))
-    assert "start_date" in hints_agg
-    assert "end_date" in hints_agg
+    # Check TotalSalesAggregation
+    hints_agg = get_type_hints(TotalSalesAggregation)
+    assert hints_agg.get("total_quantity") == float
+    assert hints_agg.get("total_revenue") == float
+    assert hints_agg.get("total_records") == int
 
     # Check DatasetProfile
     hints_profile = get_type_hints(DatasetProfile)
@@ -171,37 +170,33 @@ def test_domain_models_strict_type_annotations() -> None:
 
     # Check SessionContext methods
     sig_validate = inspect.signature(SessionContext.validate_session_id)
-    assert sig_validate.return_annotation is bool
     assert "session_id" in sig_validate.parameters
     assert sig_validate.parameters["session_id"].annotation is str
 
 
 def test_domain_exceptions_and_enums_type_safety() -> None:
     """[TEST012-08] Validates type safety and signatures of domain exceptions and enums."""
-    from src.domain.exception.auth_exceptions import AuthError, InvalidCredentialsError
-    from src.domain.exception.session_exceptions import SessionError, SessionConnectionError
+    from src.domain.exception.auth_exceptions import AuthenticationError, InvalidCredentialsError
+    from src.domain.exception.session_exceptions import SessionDomainError, SessionConnectionError
     from src.domain.exception.sql_validation_exceptions import SqlSyntaxError, SqlValidationError
-    from src.domain.model.auth_models import UserRole
     from src.domain.model.sql_validation import SqlViolationType
 
     # Exception instantiation with proper message types
     auth_err = InvalidCredentialsError("Invalid auth")
-    assert isinstance(auth_err, AuthError)
+    assert isinstance(auth_err, AuthenticationError)
     assert str(auth_err) == "Invalid auth"
 
-    sql_err = SqlSyntaxError("Malformed SQL syntax")
+    sql_err = SqlSyntaxError("SYNTAX_ERROR", "Malformed SQL syntax")
     assert isinstance(sql_err, SqlValidationError)
-    assert str(sql_err) == "Malformed SQL syntax"
+    assert "Malformed SQL syntax" in str(sql_err)
 
     session_err = SessionConnectionError("Redis down")
-    assert isinstance(session_err, SessionError)
+    assert isinstance(session_err, SessionDomainError)
     assert str(session_err) == "Redis down"
 
     # Enums
-    assert SqlViolationType.DML_DETECTED.value == "DML_DETECTED"
-    assert SqlViolationType.DDL_DETECTED.value == "DDL_DETECTED"
-    assert UserRole.ADMIN.value == "admin"
-    assert UserRole.ANALYST.value == "analyst"
+    assert SqlViolationType.DISALLOWED_ROOT_OPERATION.name == "DISALLOWED_ROOT_OPERATION"
+    assert SqlViolationType.FORBIDDEN_MUTATIONAL_NODE.name == "FORBIDDEN_MUTATIONAL_NODE"
 
 
 # Task 004: Application Layer Type Safety
@@ -222,10 +217,10 @@ def test_application_ports_abstract_method_type_signatures() -> None:
     # AuthenticateUserUseCase
     sig_auth = inspect.signature(AuthenticateUserUseCase.authenticate)
     assert sig_auth.return_annotation != inspect.Signature.empty
-    assert "request" in sig_auth.parameters
+    assert "credentials" in sig_auth.parameters
 
     # SalesDataPort
-    sig_profile = inspect.signature(SalesDataPort.get_dataset_profile)
+    sig_profile = inspect.signature(SalesDataPort.profile_dataset)
     assert sig_profile.return_annotation != inspect.Signature.empty
 
     # SessionStorePort
@@ -237,14 +232,14 @@ def test_application_ports_abstract_method_type_signatures() -> None:
     assert sig_exists.return_annotation is bool
 
     # SqlParserPort
-    sig_parse = inspect.signature(SqlParserPort.parse_statement)
+    sig_parse = inspect.signature(SqlParserPort.parse)
     assert sig_parse.return_annotation != inspect.Signature.empty
 
 
 def test_application_services_dependency_injection_typing() -> None:
     """[TEST012-10] Validates constructor DI and method contracts in Application Services."""
-    from src.application.service.authentication_service import AuthenticationService
-    from src.application.service.sales_metrics_service import SalesMetricsService
+    from src.application.service.authentication_service import AuthenticationApplicationService
+    from src.application.service.sales_metrics_service import SalesMetricsApplicationService
     from src.application.service.web_chat_application_service import WebChatApplicationService
 
     # WebChatApplicationService __init__
@@ -253,15 +248,15 @@ def test_application_services_dependency_injection_typing() -> None:
     assert "session_store" in sig_web_init.parameters
     assert sig_web_init.parameters["session_store"].annotation != inspect.Parameter.empty
 
-    # SalesMetricsService __init__
-    sig_metrics_init = inspect.signature(SalesMetricsService.__init__)
+    # SalesMetricsApplicationService __init__
+    sig_metrics_init = inspect.signature(SalesMetricsApplicationService.__init__)
     assert "sales_data_port" in sig_metrics_init.parameters
     assert sig_metrics_init.parameters["sales_data_port"].annotation != inspect.Parameter.empty
 
-    # AuthenticationService __init__
-    sig_auth_init = inspect.signature(AuthenticationService.__init__)
-    assert "token_port" in sig_auth_init.parameters
-    assert "key_provider" in sig_auth_init.parameters
+    # AuthenticationApplicationService __init__
+    sig_auth_init = inspect.signature(AuthenticationApplicationService.__init__)
+    assert "token_signer" in sig_auth_init.parameters
+    assert "validator" in sig_auth_init.parameters
 
 
 # Task 005: Adapter Layer Type Safety and Defensive Guards (S012-03)

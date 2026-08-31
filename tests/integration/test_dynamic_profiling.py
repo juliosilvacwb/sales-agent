@@ -31,6 +31,9 @@ class FakeProfilingChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "fake-profiling-chat-model"
 
+    def bind_tools(self, tools: Any, **kwargs: Any) -> "FakeProfilingChatModel":
+        return self
+
     def _generate(
         self,
         messages: List[BaseMessage],
@@ -88,8 +91,12 @@ def profile_test_csv():
         os.remove(temp_path)
 
 
-def test_dynamic_data_profiling_prompt_injection_e2e(profile_test_csv):
+def test_dynamic_data_profiling_prompt_injection_e2e(profile_test_csv, monkeypatch):
     """[TEST011-15] Verify that bootstrap_agent extracts profile and injects dynamic insights block into SalesAgent."""
+    monkeypatch.setattr(
+        "src.adapter.outbound.llm.llm_factory.LLMFactory.create_llm",
+        lambda: FakeProfilingChatModel([]),
+    )
     agent = bootstrap_agent(dataset_path=profile_test_csv)
 
     assert "### DYNAMIC DATA INSIGHTS:" in agent.system_prompt
@@ -133,8 +140,12 @@ def test_dynamic_profiling_sql_generation_with_sentinel_none(profile_test_csv):
     assert "2 vendas sem promoção" in response
 
 
-def test_dynamic_profiling_safe_fallback_on_corrupted_dataset():
+def test_dynamic_profiling_safe_fallback_on_corrupted_dataset(monkeypatch):
     """[TEST011-17] Verify that if profiling fails (e.g. missing file/table), bootstrap proceeds safely with default prompt."""
+    monkeypatch.setattr(
+        "src.adapter.outbound.llm.llm_factory.LLMFactory.create_llm",
+        lambda: FakeProfilingChatModel([]),
+    )
     agent = bootstrap_agent(dataset_path="non_existent_dataset.csv")
 
     assert agent is not None

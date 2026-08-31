@@ -11,8 +11,8 @@ def _sanitize_metadata_value(val: Any, max_len: int = 64) -> str:
     text = str(val)
     # Strip CRLF and control characters, replacing with single space
     text = re.sub(r"[\r\n\t]+", " ", text).strip()
-    # Strip markdown header prefixes to avoid layout hijacking
-    text = re.sub(r"^#+\s*", "", text)
+    # Strip markdown header hashes to avoid layout hijacking
+    text = re.sub(r"#+", "", text).strip()
     # Limit length to prevent buffer/token bloating
     if len(text) > max_len:
         text = text[:max_len].rstrip()

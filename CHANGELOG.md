@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-08-31
+
+### Added
+
+- **Orquestração de Agente com LangGraph StateGraph (T014 / R014):**
+  - Transição arquitetural do orquestrador cognitivo do Sales Data Analysis Agent para uma máquina de estados direcionada determinística baseada em `langgraph.graph.StateGraph` e `langgraph.graph.MessagesState`.
+- **Topologia de Grafo e Nós Desacoplados (`src/adapter/inbound/llm/sales_agent.py`):**
+  - Implementação de `create_sales_graph` compilando nós discretos: nó `call_model` (execução do LLM com bind de ferramentas e injeção do prompt de sistema enriquecido) e nó `tools` (`ToolNode` nativo para execução das 10 Domain Tools determinísticas e do Fallback SQL seguro).
+- **Roteamento Condicional e Aresta Cíclica:**
+  - Implementação da função de transição `should_continue` que roteia para `"tools"` quando há `tool_calls` pendentes ou para `END` na presença de resposta final/diálogo casual, com aresta cíclica incondicional `"tools" -> "agent"` garantindo suporte nativo ao loop de autorrecuperação autônoma (R009).
+- **Tratamento de Exceções de Grafo e Contingência:**
+  - Captura robusta de `GraphRecursionError` e exceções genéricas durante a invocação do grafo, retornando a mensagem de fallback padronizada `FALLBACK_ERROR_MESSAGE` com `data_queried = False`.
+- **Suíte de Testes Automatizados de Grafo:**
+  - Criação de 23 cenários de testes unitários e de integração em `tests/unit/test_sales_agent.py` e `tests/integration/test_sales_agent.py` cobrindo compilação de nós, roteamento de borda, autorrecuperação cíclica, teto de recursão e retrocompatibilidade de turnos conversacionais.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R014-langgraph-orchestration.md`, `T014-langgraph-orchestration.md`, `TEST014-langgraph-orchestration.md`, `S014-langgraph-orchestration.md`, `Q014-langgraph-orchestration.md` e `PS014-langgraph-orchestration.md`.
+
+### Changed
+
+- **Eliminação de Dependência de `AgentExecutor` Legado:**
+  - Substituição da compilação legada `AgentExecutor(agent=agent, tools=tools)` pela execução de `StateGraph(MessagesState).compile()`.
+- **Isolamento de Memória Conversacional em Grafo:**
+  - O método `SalesAgent.ask` agora monta o `MessagesState` com lista ordenada (`SystemMessage`, histórico anterior, `HumanMessage`) e propaga o `RunnableConfig` com `recursion_limit: 10` e callbacks para o executor compilado.
+- **Compatibilidade Retroativa:**
+  - Manutenção da assinatura pública de `SalesAgent.ask()`, retorno do tipo estruturado `AgentResult` e alias funcional `create_agent` para continuidade de patches e testes existentes.
+
+### Security & Reliability
+
+- **Prevenção de Negação de Serviço e Loop Infinito (OWASP LLM04 / S014-01 / CWE-400 / CWE-835):** Imposição imutável de `recursion_limit: 10` na execução do grafo e interceptação graciosa de `GraphRecursionError`.
+- **Validação de Grounding e Whitelist Estrita (S014-02 / CWE-1188):** Extração de instâncias `ToolMessage` do estado inspecionando conformidade contra a constante `DATA_QUERY_TOOLS`.
+- **Sanitização de Caminhos e Prevenção de Log Forging (S014-03 / CWE-209 / CWE-117):** Redação de diretórios locais (`[PATH_REDACTED]`) e remoção de quebras de linha em mensagens de erro interceptadas pelo `_handle_tool_error`.
+- **Sanitização de Mensagens Externas de Histórico (S014-04 / CWE-20):** Validação defensiva de instâncias `BaseMessage` recebidas em `chat_history`, ignorando tipos inválidos sem quebrar a execução.
+- **Encapsulamento Hexagonal Estrito (S014-05 / BR01):** Primitivas e estados do LangGraph restritos ao adaptador de entrada `sales_agent.py`, sem vazamento para serviços de aplicação, controladores ou domínio.
+
 ## [1.11.0] - 2026-08-31
 
 ### Added

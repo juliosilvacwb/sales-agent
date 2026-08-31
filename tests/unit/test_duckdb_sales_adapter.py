@@ -203,11 +203,11 @@ def test_duckdb_sales_adapter_profile_dataset_missing_csv_fallback():
 
 def test_duckdb_sales_adapter_profile_dataset_exception_graceful_handling(sample_csv_path, monkeypatch):
     """[TEST011-09 / S011-04] Test that unexpected SQL errors during profiling are swallowed gracefully."""
+    from unittest.mock import MagicMock
     adapter = DuckDbSalesAdapter(db_path=":memory:", dataset_path=sample_csv_path)
-    # Simulate connection error
-    def broken_execute(*args, **kwargs):
-        raise RuntimeError("Simulated connection failure")
-    monkeypatch.setattr(adapter._connection, "execute", broken_execute)
+    mock_conn = MagicMock()
+    mock_conn.execute.side_effect = RuntimeError("Simulated connection failure")
+    monkeypatch.setattr(adapter, "_connection", mock_conn)
 
     profile = adapter.profile_dataset()
     assert profile.total_records == 0
