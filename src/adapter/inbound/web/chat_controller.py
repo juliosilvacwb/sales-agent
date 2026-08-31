@@ -1,5 +1,6 @@
 """Web Chat REST Controller."""
 import logging
+from typing import Any, Optional
 from fastapi import APIRouter, Depends
 from src.domain.model.auth_models import TokenClaims
 from src.application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
@@ -12,14 +13,14 @@ from src.adapter.inbound.web.jwt_security_guard import verify_jwt_token
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_app_service_instance = None
+_app_service_instance: Optional[WebChatUseCase] = None
 
 
 def get_web_chat_use_case_singleton() -> WebChatUseCase:
     """Dependency injection provider for stateless WebChatUseCase."""
     global _app_service_instance
     if _app_service_instance is None:
-        def agent_factory():
+        def agent_factory() -> Any:
             return bootstrap_agent()
         session_store = SessionFactory.get_session_store()
         _app_service_instance = WebChatApplicationService(

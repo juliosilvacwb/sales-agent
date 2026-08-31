@@ -1,7 +1,7 @@
 """Domain models and value objects for dataset profiling and dynamic insights."""
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 def _sanitize_metadata_value(val: Any, max_len: int = 64) -> str:

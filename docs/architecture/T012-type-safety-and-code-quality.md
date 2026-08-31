@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R012-type-safety-and-code-quality.md](../business-requirements/R012-type-safety-and-code-quality.md)
+- **Test Coverage:** [TEST012-type-safety-and-code-quality.md](../tests/TEST012-type-safety-and-code-quality.md)
+- **Security Audit:** [S012-type-safety-and-code-quality.md](../security/S012-type-safety-and-code-quality.md)
 
 ## Technical Goal
 
@@ -44,22 +46,22 @@ Elevate the Sales Data Analysis Agent codebase to enterprise-grade code quality 
 
 #### Phase 1 tasks (all parallel-safe)
 
-- [ ] Task 001 - [Config]: Update `requirements.txt` with development dependencies (Depends On: —)
-- [ ] Task 002 - [Config]: Configure `[tool.mypy]` and `[tool.ruff]` in `pyproject.toml` (Depends On: —)
+- [COMPLETED] Task 001 - [Config]: Update `requirements.txt` with development dependencies (Depends On: —)
+- [COMPLETED] Task 002 - [Config]: Configure `[tool.mypy]` and `[tool.ruff]` in `pyproject.toml` (Depends On: —)
 
 ### 🟡 Phase 2 — Codebase Refactoring (Depends on Phase 1)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 003 - [Domain-Model]: Type hint and format Domain Layer (Depends On: Task 001, Task 002)
-- [ ] Task 004 - [UseCase]: Type hint and format Application Layer (Depends On: Task 003)
-- [ ] Task 005 - [Adapter-Web]: Type hint and format Adapter Layer (Depends On: Task 004)
+- [COMPLETED] Task 003 - [Domain-Model]: Type hint and format Domain Layer (Depends On: Task 001, Task 002)
+- [COMPLETED] Task 004 - [UseCase]: Type hint and format Application Layer (Depends On: Task 003)
+- [COMPLETED] Task 005 - [Adapter-Web]: Type hint and format Adapter Layer (Depends On: Task 004)
 
 ### 🟢 Phase 3 — CI/CD Validation and Gating (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 006 - [Adapter-Infra]: Implement `lint-and-typecheck` quality gate in CI (Depends On: Task 005)
+- [COMPLETED] Task 006 - [Adapter-Infra]: Implement `lint-and-typecheck` quality gate in CI (Depends On: Task 005)
 
 ## Task Detailing (Summary Tasks)
 

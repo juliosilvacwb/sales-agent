@@ -11,7 +11,7 @@ DEFAULT_MAX_SESSIONS = 500
 class SessionMemoryAdapter(SessionStorePort):
     """In-memory persistence for chat sessions with bounded LRU eviction implementing SessionStorePort."""
     
-    def __init__(self, max_sessions: int = DEFAULT_MAX_SESSIONS):
+    def __init__(self, max_sessions: int = DEFAULT_MAX_SESSIONS) -> None:
         """
         Args:
             max_sessions: Maximum number of session chat histories to keep in memory.

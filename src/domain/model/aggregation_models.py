@@ -1,6 +1,6 @@
 """Domain Value Objects for aggregated sales metrics data structures."""
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Sequence
+from typing import Dict
 
 
 @dataclass(frozen=True)

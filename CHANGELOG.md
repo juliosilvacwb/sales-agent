@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-08-31
+
+### Added
+
+- **Tipagem Estática Estrita e Qualidade de Código (T012 / R012):**
+  - Implementação de tipagem estática rigorosa com MyPy em modo estrito (`strict = true`) em 100% da base de código (`src/`), eliminando erros de runtime como `TypeError` e `NoneType` attribute dereferences.
+- **Consolidação de Tooling no `pyproject.toml`:**
+  - Configurações centralizadas para MyPy (`strict = true`, `disallow_untyped_defs = true`, `no_implicit_optional = true`, `warn_return_any = true`) e Ruff (linter e formatador determinístico de alta performance, regras `E`, `W`, `F`, `I`, `B`, `UP`, com `line-length = 100` e aspas duplas).
+- **Segregação de Dependências de Desenvolvimento (`requirements-dev.txt`):**
+  - Criação do arquivo dedicado `requirements-dev.txt` isolando ferramentas de teste, linter e stubs de tipagem (`pytest`, `pytest-mock`, `mypy`, `ruff`, `types-redis`, `types-requests`) das dependências de runtime de produção (`requirements.txt`).
+- **Quality Gate de CI/CD no GitHub Actions (`.github/workflows/ci-cd.yml`):**
+  - Adição do job bloqueante `lint-and-typecheck` executando `ruff check .`, `ruff format --check .` e `mypy src/` com timeout de 5 minutos, exigido como pré-requisito estrito antes da execução de testes unitários (`test-suite`).
+- **Suíte de Testes Automatizados de Tipagem e Qualidade (`tests/unit/test_type_safety_and_code_quality.py`):**
+  - 14 cenários de testes unitários cobrindo integridade de configurações, assinaturas de portas e modelos de domínio, injeção de dependências em serviços, anotações de controllers FastAPI e barreiras de CI/CD.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R012-type-safety-and-code-quality.md`, `T012-type-safety-and-code-quality.md`, `TEST012-type-safety-and-code-quality.md`, `S012-type-safety-and-code-quality.md`, `Q012-type-safety-and-code-quality.md` e `PS012-type-safety-and-code-quality.md`.
+
+### Changed
+
+- **Isolamento de Imagem de Produção (`requirements.txt` / `Dockerfile`):**
+  - Remoção de dependências de compilação, testes e linters do `requirements.txt` principal, reduzindo o footprint e a superfície de ataque dos contêineres Docker.
+- **Remoção de Configurações Obsoletas:**
+  - Exclusão de configurações legadas do Pyright (`[tool.pyright]`).
+
+### Security & Reliability
+
+- **Supply Chain Security & Hardening de Containers (S012-01 / CWE-1104 / CICD-SEC-03):** Isolamento de dependências de desenvolvimento prevenindo instalação de ferramentas desnecessárias em containers de produção.
+- **Restrição de Overrides em Módulos de Autenticação e Criptografia (S012-02 / CWE-704 / ASVS V5):** Erradicação de supressões `ignore_missing_imports = true` para `jwt.*` e `cryptography.*`, garantindo integridade de verificação de tokens e manipulação de chaves RSA.
+- **Defesa em Profundidade e Type Narrowing em Adaptadores de Borda (S012-03 / CWE-252 / CWE-754):** Validações defensivas contra queries vazias/nulas e fábrica nula em `sql_fallback_tool.py`, e salvaguardas de nullability em leituras/escritas do Redis em `redis_session_adapter.py`.
+- **Princípio do Menor Privilégio no Pipeline CI/CD (S012-04 / CICD-SEC-01 / CICD-SEC-05):** Imposição explícita de `permissions: contents: read` nos jobs do GitHub Actions.
+
 ## [1.9.0] - 2026-08-30
 
 ### Added

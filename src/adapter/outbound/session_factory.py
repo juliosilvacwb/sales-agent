@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from src.application.port.outbound.session_store_port import SessionStorePort
-from src.adapter.outbound.memory.session_memory_adapter import SessionMemoryAdapter, session_memory_adapter
+from src.adapter.outbound.memory.session_memory_adapter import session_memory_adapter
 from src.adapter.outbound.redis.redis_session_adapter import RedisSessionAdapter
 from src.domain.model.session_context import DEFAULT_SESSION_TTL_SECONDS
 

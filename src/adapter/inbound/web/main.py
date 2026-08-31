@@ -1,32 +1,37 @@
 import os
+from typing import Any, Callable
 from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
 from src.adapter.inbound.web.chat_controller import router as chat_router
+
+load_dotenv()
 
 app = FastAPI(
     title="Sales Data Analysis API",
     description="API for the Sales Data Analysis Agent Web Chat Interface",
-    version="1.0.0"
+    version="1.0.0",
 )
+
 
 # HTTP Security Headers Middleware
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def add_security_headers(request: Request, call_next: Callable[[Request], Any]) -> Any:
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+
 # CORS configuration
-raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000")
+raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000",
+)
 allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 app.add_middleware(
@@ -46,10 +51,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/", include_in_schema=False)
-def root_redirect():
+def root_redirect() -> RedirectResponse:
     return RedirectResponse(url="/static/index.html")

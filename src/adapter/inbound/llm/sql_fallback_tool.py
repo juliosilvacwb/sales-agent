@@ -62,9 +62,9 @@ class SecuredSQLQueryTool(BaseTool):
     )
     args_schema: Optional[Type[BaseModel]] = SQLQueryInput  # type: ignore
     handle_tool_error: Optional[Union[bool, str, Callable[[ToolException], Any]]] = True
-    use_case: Any = None
-    sql_parser_port: Any = None
-    validator: Any = None
+    use_case: Optional[SalesAnalysisUseCase] = None
+    sql_parser_port: Optional[SqlParserPort] = None
+    validator: Optional[SqlSecurityValidator] = None
 
     def __init__(
         self, 
@@ -80,6 +80,16 @@ class SecuredSQLQueryTool(BaseTool):
 
     def _run(self, query: str) -> str:
         """Validates query security, emits [MISSING_TOOL] log, and executes on DuckDB."""
+        if query is None or not isinstance(query, str) or not query.strip():
+            raise ToolException("Consulta SQL inválida ou vazia.")
+
+        if self.sql_parser_port is None:
+            raise ToolException("SqlParserPort não configurado.")
+        if self.validator is None:
+            raise ToolException("SqlSecurityValidator não configurado.")
+        if self.use_case is None:
+            raise ToolException("SalesAnalysisUseCase não configurado.")
+
         cleaned_query = query.strip().rstrip(";")
         
         # Log observability marker with original query
@@ -121,7 +131,14 @@ class SecuredSQLQueryTool(BaseTool):
             )
 
         try:
-            results = self.use_case.execute_custom_query(cleaned_query)
+            raw_results = self.use_case.execute_custom_query(cleaned_query)
+            if raw_results is None:
+                results: List[Dict[str, Any]] = []
+            elif isinstance(raw_results, list):
+                results = raw_results
+            else:
+                results = list(raw_results)
+
             if not results:
                 logger.info("SQL Query returned 0 records: %s", cleaned_query)
                 return json.dumps(
@@ -178,6 +195,8 @@ def create_sql_fallback_tool(
     validator: Optional[SqlSecurityValidator] = None
 ) -> SecuredSQLQueryTool:
     """Factory helper to instantiate a SecuredSQLQueryTool."""
+    if sales_use_case is None:
+        raise ValueError("sales_use_case must not be None")
     if sql_parser_port is None:
         sql_parser_port = SqlGlotParserAdapter()
     if validator is None:

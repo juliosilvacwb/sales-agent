@@ -51,7 +51,7 @@ class RedisSessionAdapter(SessionStorePort):
             self._client = redis_client
         else:
             self._client = redis.from_url(
-                redis_url,
+                resolved_url,
                 decode_responses=True,
                 socket_connect_timeout=3,
                 socket_timeout=3,
@@ -67,11 +67,18 @@ class RedisSessionAdapter(SessionStorePort):
         
         try:
             raw_data = self._client.get(key)
-            if not raw_data:
+            if raw_data is None or not raw_data:
                 logger.debug("No existing session found in Redis for key %s. Initializing new history.", key)
                 return InMemoryChatMessageHistory()
 
+            if not isinstance(raw_data, str):
+                raw_data = str(raw_data)
+
             parsed_list = json.loads(raw_data)
+            if not isinstance(parsed_list, list):
+                logger.warning("Session data in Redis for %s is not a valid list. Initializing empty history.", key)
+                return InMemoryChatMessageHistory()
+
             messages = messages_from_dict(parsed_list)
             return InMemoryChatMessageHistory(messages=messages)
         except (redis.ConnectionError, redis.TimeoutError) as e:
@@ -84,10 +91,17 @@ class RedisSessionAdapter(SessionStorePort):
     def save_history(self, session_id: str, history: BaseChatMessageHistory) -> None:
         """Serializes and persists chat message history in Redis with TTL expiration."""
         SessionContext.validate_session_id(session_id)
+        if history is None:
+            raise SessionStorageError(f"Cannot save None history for session '{session_id}'")
+
         key = self._format_key(session_id)
 
         try:
-            serialized_dicts = messages_to_dict(history.messages)
+            history_messages = getattr(history, "messages", [])
+            if not isinstance(history_messages, list):
+                history_messages = list(history_messages)
+
+            serialized_dicts = messages_to_dict(history_messages)
             payload = json.dumps(serialized_dicts)
             self._client.set(key, payload, ex=self._ttl_seconds)
             logger.debug("Successfully saved session %s to Redis with TTL=%ds", key, self._ttl_seconds)
@@ -119,7 +133,8 @@ class RedisSessionAdapter(SessionStorePort):
         key = self._format_key(session_id)
 
         try:
-            return bool(self._client.exists(key))
+            raw_exists = self._client.exists(key)
+            return bool(raw_exists)
         except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.error("Redis connection failure while checking session %s: %s", session_id, e)
             raise SessionConnectionError(f"Failed to connect to Redis for session '{session_id}': {e}") from e
