@@ -162,5 +162,145 @@ def test_calculate_price_elasticity():
 def test_calculate_price_elasticity_empty():
     service = AdvancedMetricsService()
     result = service.calculate_price_elasticity(None)
+    assert result.total_products_evaluated == 0
+    assert result.inconclusive_products_count == 0
+
+
+def test_calculate_price_elasticity_single_product_elastic():
+    service = AdvancedMetricsService()
+    agg = PriceElasticityAggregation(
+        promoted_avg_price=80.0,
+        non_promoted_avg_price=100.0,
+        promoted_avg_qty=220.0,
+        non_promoted_avg_qty=80.0,
+        promoted_count=2,
+        non_promoted_count=2,
+        total_records=4,
+        product_id="PROD_ELASTIC",
+    )
+    result = service.calculate_price_elasticity([agg], target_product_id="PROD_ELASTIC")
+
+    assert result.product_id == "PROD_ELASTIC"
+    assert result.elasticity_coefficient == -8.75
+    assert result.percentage_change_in_price == -20.0
+    assert result.percentage_change_in_quantity == 175.0
+    assert "Elastic" in result.demand_classification
+
+
+def test_calculate_price_elasticity_single_product_inelastic():
+    service = AdvancedMetricsService()
+    agg = PriceElasticityAggregation(
+        promoted_avg_price=90.0,
+        non_promoted_avg_price=100.0,
+        promoted_avg_qty=105.0,
+        non_promoted_avg_qty=100.0,
+        promoted_count=2,
+        non_promoted_count=2,
+        total_records=4,
+        product_id="PROD_INELASTIC",
+    )
+    result = service.calculate_price_elasticity([agg], target_product_id="PROD_INELASTIC")
+
+    assert result.product_id == "PROD_INELASTIC"
+    assert result.elasticity_coefficient == -0.5
+    assert "Inelastic" in result.demand_classification
+
+
+def test_calculate_price_elasticity_zero_price_delta():
+    service = AdvancedMetricsService()
+    agg = PriceElasticityAggregation(
+        promoted_avg_price=100.0,
+        non_promoted_avg_price=100.0,
+        promoted_avg_qty=120.0,
+        non_promoted_avg_qty=100.0,
+        promoted_count=2,
+        non_promoted_count=2,
+        total_records=4,
+        product_id="PROD_ZERO_DELTA",
+    )
+    result = service.calculate_price_elasticity([agg], target_product_id="PROD_ZERO_DELTA")
+
     assert result.elasticity_coefficient == 0.0
+    assert result.demand_classification == "Unitary / Zero price change"
+
+
+def test_calculate_price_elasticity_inconclusive():
+    service = AdvancedMetricsService()
+    agg_no_promo = PriceElasticityAggregation(
+        promoted_avg_price=0.0,
+        non_promoted_avg_price=100.0,
+        promoted_avg_qty=0.0,
+        non_promoted_avg_qty=100.0,
+        promoted_count=0,
+        non_promoted_count=5,
+        total_records=5,
+        product_id="PROD_NO_PROMO",
+    )
+    result = service.calculate_price_elasticity([agg_no_promo], target_product_id="PROD_NO_PROMO")
+
+    assert result.product_id == "PROD_NO_PROMO"
+    assert result.demand_classification == "Inconclusive"
+    assert "não possui histórico de promoções" in result.summary
+
+
+def test_calculate_price_elasticity_unknown_product():
+    service = AdvancedMetricsService()
+    agg = PriceElasticityAggregation(
+        promoted_avg_price=80.0,
+        non_promoted_avg_price=100.0,
+        promoted_avg_qty=220.0,
+        non_promoted_avg_qty=80.0,
+        promoted_count=2,
+        non_promoted_count=2,
+        total_records=4,
+        product_id="PROD_EXISTING",
+    )
+    result = service.calculate_price_elasticity([agg], target_product_id="PROD_UNKNOWN")
+
+    assert result.product_id == "PROD_UNKNOWN"
     assert result.demand_classification == "Undefined"
+    assert "não encontrado" in result.summary
+
+
+def test_calculate_price_elasticity_catalog_overview():
+    service = AdvancedMetricsService()
+    aggs = [
+        PriceElasticityAggregation(
+            promoted_avg_price=80.0,
+            non_promoted_avg_price=100.0,
+            promoted_avg_qty=220.0,
+            non_promoted_avg_qty=80.0,
+            promoted_count=2,
+            non_promoted_count=2,
+            total_records=4,
+            product_id="PROD_HIGH_ELASTIC",
+        ),
+        PriceElasticityAggregation(
+            promoted_avg_price=90.0,
+            non_promoted_avg_price=100.0,
+            promoted_avg_qty=105.0,
+            non_promoted_avg_qty=100.0,
+            promoted_count=2,
+            non_promoted_count=2,
+            total_records=4,
+            product_id="PROD_LOW_INELASTIC",
+        ),
+        PriceElasticityAggregation(
+            promoted_avg_price=0.0,
+            non_promoted_avg_price=100.0,
+            promoted_avg_qty=0.0,
+            non_promoted_avg_qty=100.0,
+            promoted_count=0,
+            non_promoted_count=3,
+            total_records=3,
+            product_id="PROD_INCONCLUSIVE",
+        ),
+    ]
+    overview = service.calculate_price_elasticity(aggs)
+
+    assert overview.total_products_evaluated == 3
+    assert overview.inconclusive_products_count == 1
+    assert len(overview.most_elastic_products) == 2
+    assert overview.most_elastic_products[0].product_id == "PROD_HIGH_ELASTIC"
+    assert overview.most_inelastic_products[0].product_id == "PROD_LOW_INELASTIC"
+

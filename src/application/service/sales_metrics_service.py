@@ -1,12 +1,13 @@
 """Application Service implementing SalesAnalysisUseCase."""
 import logging
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from src.application.port.inbound.sales_analysis_usecase import SalesAnalysisUseCase
 from src.application.port.outbound.sales_data_port import SalesDataPort
 from src.domain.model.metric_result import (
     AverageDiscountResult,
+    CatalogPriceElasticityOverview,
     PlannedVsActualResult,
     PriceElasticityResult,
     PromotionImpactResult,
@@ -100,11 +101,13 @@ class SalesMetricsApplicationService(SalesAnalysisUseCase):
         agg = self._sales_data_port.aggregate_seasonality()
         return self._advanced_metrics.identify_sales_seasonality(agg)
 
-    def calculate_price_elasticity(self) -> PriceElasticityResult:
-        """Calculates price elasticity of demand."""
-        logger.info("Executing use case: calculate_price_elasticity")
-        agg = self._sales_data_port.aggregate_price_elasticity()
-        return self._advanced_metrics.calculate_price_elasticity(agg)
+    def calculate_price_elasticity(
+        self, product_id: Optional[str] = None
+    ) -> Union[PriceElasticityResult, CatalogPriceElasticityOverview]:
+        """Calculates price elasticity of demand for a specific product or the whole catalog."""
+        logger.info("Executing use case: calculate_price_elasticity (product_id=%s)", product_id)
+        agg = self._sales_data_port.aggregate_price_elasticity(product_id=product_id)
+        return self._advanced_metrics.calculate_price_elasticity(agg, target_product_id=product_id)
 
     def execute_custom_query(self, query: str) -> List[Dict[str, Any]]:
         """Executes a secured ad-hoc SQL query for fallback analytical requests."""

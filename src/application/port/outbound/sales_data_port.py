@@ -69,8 +69,10 @@ class SalesDataPort(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def aggregate_price_elasticity(self) -> PriceElasticityAggregation:
-        """Aggregates promotional and baseline prices and quantities for price elasticity."""
+    def aggregate_price_elasticity(
+        self, product_id: Optional[str] = None
+    ) -> List[PriceElasticityAggregation]:
+        """Aggregates promotional and baseline prices and quantities for price elasticity per product segment."""
         raise NotImplementedError
 
     @abstractmethod

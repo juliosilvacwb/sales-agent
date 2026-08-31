@@ -17,6 +17,7 @@ from src.domain.model.aggregation_models import (
 )
 from src.domain.model.metric_result import (
     AverageDiscountResult,
+    CatalogPriceElasticityOverview,
     PlannedVsActualResult,
     PriceElasticityResult,
     PromotionImpactResult,
@@ -150,9 +151,31 @@ def test_aggregation_models_instantiation():
     seas_agg = SeasonalityAggregation({"2023-01": 200.0}, 5)
     assert seas_agg.monthly_volumes["2023-01"] == 200.0
 
-    elas_agg = PriceElasticityAggregation(45.0, 50.0, 150.0, 100.0, 5, 5, 10)
+    elas_agg = PriceElasticityAggregation(45.0, 50.0, 150.0, 100.0, 5, 5, 10, product_id="PROD_01")
     assert elas_agg.promoted_avg_price == 45.0
     assert elas_agg.non_promoted_avg_price == 50.0
+    assert elas_agg.product_id == "PROD_01"
+
+    elas_res = PriceElasticityResult(
+        elasticity_coefficient=-2.0,
+        percentage_change_in_price=-10.0,
+        percentage_change_in_quantity=20.0,
+        demand_classification="Elastic",
+        summary="Elastic demand",
+        product_id="PROD_01",
+    )
+    assert elas_res.product_id == "PROD_01"
+
+    catalog_overview = CatalogPriceElasticityOverview(
+        total_products_evaluated=1,
+        inconclusive_products_count=0,
+        most_elastic_products=[elas_res],
+        most_inelastic_products=[elas_res],
+        summary="Catalog overview summary",
+    )
+    assert catalog_overview.total_products_evaluated == 1
+    assert len(catalog_overview.most_elastic_products) == 1
+    assert catalog_overview.most_elastic_products[0].product_id == "PROD_01"
 
 
 def test_aggregation_models_immutability():
@@ -160,3 +183,4 @@ def test_aggregation_models_immutability():
     p_agg = ProductAggregation("P1", 100.0, 500.0, 1)
     with pytest.raises((FrozenInstanceError, TypeError)):
         p_agg.total_quantity = 200.0  # type: ignore
+

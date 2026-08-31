@@ -93,3 +93,5 @@ class PriceElasticityAggregation:
     promoted_count: int
     non_promoted_count: int
     total_records: int = 0
+    product_id: str = ""
+

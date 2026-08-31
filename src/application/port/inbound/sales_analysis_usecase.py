@@ -1,10 +1,11 @@
 """Input Port (Driving Port) defining Use Cases for sales data analysis."""
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from src.domain.model.metric_result import (
     AverageDiscountResult,
+    CatalogPriceElasticityOverview,
     PlannedVsActualResult,
     PriceElasticityResult,
     PromotionImpactResult,
@@ -70,8 +71,10 @@ class SalesAnalysisUseCase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def calculate_price_elasticity(self) -> PriceElasticityResult:
-        """Calculates price elasticity of demand."""
+    def calculate_price_elasticity(
+        self, product_id: Optional[str] = None
+    ) -> Union[PriceElasticityResult, CatalogPriceElasticityOverview]:
+        """Calculates price elasticity of demand for a specific product or the whole catalog."""
         raise NotImplementedError
 
     @abstractmethod

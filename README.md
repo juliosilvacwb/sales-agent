@@ -185,7 +185,7 @@ sequenceDiagram
 | **Déficit de Receita** | `calculate_revenue_deficit` | Calcula a perda financeira estimada por desvios de meta. |
 | **Desconto Médio** | `calculate_average_discount` | Avalia a margem de desconto médio aplicado frente ao planejado. |
 | **Sazonalidade de Vendas** | `identify_sales_seasonality` | Aponta meses de pico, vale e curva de sazonalidade temporal. |
-| **Elasticidade de Preço** | `calculate_price_elasticity` | Calcula o coeficiente de elasticidade-preço da demanda. |
+| **Elasticidade de Preço** | `calculate_price_elasticity` | Calcula a elasticidade-preço da demanda por produto ou ranking macro de todo o catálogo (mitigando o Paradoxo de Simpson). |
 | **Fallback SQL Seguro** | `secured_sql_query` | Executa consultas analíticas `SELECT` ad-hoc com validação AST via `sqlglot` e log `[MISSING_TOOL]`. |
 
 ---
@@ -201,12 +201,12 @@ challenge_ai_engineer/
 ├── dataset/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
-│   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R006)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T006)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S006)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST006)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q006)
+│   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R008)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T008)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S008)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST008)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q008)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)

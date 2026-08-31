@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-30
+
+### Added
+
+- **Elasticidade-Preço da Demanda Baseada em Segmentos (T008 / R008):** Transição do cálculo global para modelo segmentado por `product_id`, eliminando distorções estatísticas decorrentes do Paradoxo de Simpson ao isolar variações de preço e volume em coortes homogêneas.
+- **Modelos e Value Objects de Domínio (`src/domain/model/metric_result.py` e `aggregation_models.py`):**
+  - Criação do Value Object imutável `CatalogPriceElasticityOverview` com campos `total_products_evaluated`, `inconclusive_products_count`, `most_elastic_products`, `most_inelastic_products` e `summary`.
+  - Atualização de `PriceElasticityAggregation` adicionando o campo `product_id: str`.
+  - Atualização de `PriceElasticityResult` adicionando o campo `product_id: Optional[str] = None`.
+- **Serviço de Domínio `AdvancedMetricsService` (`src/domain/service/advanced_metrics_service.py`):**
+  - Refatoração do método `calculate_price_elasticity` para suportar tanto consultas individuais de produtos quanto ranqueamento macro de todo o catálogo.
+  - Implementação do cálculo determinístico de PED per segment ($\frac{\% \Delta Q}{\% \Delta P}$).
+  - Proteção estrita contra divisão por zero (`Unitary / Zero price change`) quando a variação de preço for nula ($\% \Delta P = 0.0$).
+  - Isolamento de coortes esparsas (`Inconclusive`) para produtos sem registros promocionais ou basais, excluindo-os dos rankings sem interromper o processamento dos demais itens.
+- **Portas de Saída e Entrada (`src/application/port/`):**
+  - Atualização de `SalesDataPort.aggregate_price_elasticity(product_id: Optional[str] = None) -> List[PriceElasticityAggregation]`.
+  - Atualização de `SalesAnalysisUseCase.calculate_price_elasticity(product_id: Optional[str] = None) -> Union[PriceElasticityResult, CatalogPriceElasticityOverview]`.
+- **Serviço de Aplicação `SalesMetricsApplicationService` (`src/application/service/sales_metrics_service.py`):**
+  - Orquestração do caso de uso com repasse transparente do parâmetro `product_id` para o adaptador de banco e o serviço de domínio.
+- **Pushdown de Agregação SQL no Adaptador DuckDB (`src/adapter/outbound/persistence/duckdb_sales_adapter.py`):**
+  - Agrupamento nativo via SQL `GROUP BY product_id` com funções de agregação condicionais (`AVG() FILTER (...)`, `COUNT() FILTER (...)`).
+  - Filtragem parametrizada segura contra SQL Injection via `WHERE product_id = ?`.
+- **Ferramenta LLM Atualizada (`src/adapter/inbound/llm/domain_tools.py`):**
+  - Assinatura da tool `calculate_price_elasticity(product_id: Optional[str] = None) -> str` com docstring contextualizada para consultas pontuais ou rankings de catálogo.
+- **Suíte Completa de Testes Automatizados:**
+  - Criação de `tests/integration/test_price_elasticity.py` validando cenários elásticos, inelásticos, variação zero, produtos inexistentes e visão macro do catálogo.
+  - Testes unitários expandidos em `test_advanced_metrics_service.py`, `test_duckdb_sales_adapter.py`, `test_domain_tools.py` e `test_domain_models.py`.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R008-segment-based-price-elasticity.md`, `T008-segment-based-price-elasticity.md`, `TEST008-segment-based-price-elasticity.md`, `S008-segment-based-price-elasticity.md`, `Q008-segment-based-price-elasticity.md` e `PS008-segment-based-price-elasticity.md`.
+
+### Changed
+
+- **Eliminação do Paradoxo de Simpson em Análise de Elasticidade:** Superação do modelo legado que misturava preços de itens heterogêneos em médias globais antes de computar elasticidade.
+
+### Security & Reliability
+
+- **Prevenção de Injeção de SQL (OWASP A03 / ASVS V5):** Parametrização estrita de consultas SQL DuckDB na cláusula `WHERE product_id = ?`.
+- **Prevenção de Negação de Serviço por Divisão por Zero (CWE-369):** Tratamento matemático de $\Delta P = 0.0$ e preços/quantidades base zeradas retornando classificações seguras (`Unitary / Zero price change` e `Undefined`).
+- **Resiliência e Isolamento de Falhas (BR04):** Dados incompletos em um produto não contaminam nem invalidam o processamento do catálogo como um todo.
+- **Sanitização e Normalização de Entradas (CWE-20):** Remoção de espaços em branco (`.strip()`) nos identificadores de produtos.
+
 ## [1.5.0] - 2026-08-30
 
 ### Added

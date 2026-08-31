@@ -144,10 +144,14 @@ def create_domain_tools(sales_use_case: SalesAnalysisUseCase) -> List[BaseTool]:
         return _to_json_str(result)
 
     @tool
-    def calculate_price_elasticity() -> str:
-        """Calcula o coeficiente de elasticidade-preço da demanda entre descontos e variação no volume."""
-        logger.info("Tool invoked: calculate_price_elasticity")
-        result = sales_use_case.calculate_price_elasticity()
+    def calculate_price_elasticity(product_id: Optional[str] = None) -> str:
+        """Calcula o coeficiente de elasticidade-preço da demanda para um produto específico ou visão geral do catálogo.
+        
+        Args:
+            product_id: Identificador do produto (ex: 'PROD_01'). Se omitido (None), calcula e ranqueia a elasticidade de todo o catálogo.
+        """
+        logger.info("Tool invoked: calculate_price_elasticity (product_id=%s)", product_id)
+        result = sales_use_case.calculate_price_elasticity(product_id=product_id)
         return _to_json_str(result)
 
     return [

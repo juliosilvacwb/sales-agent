@@ -2,7 +2,7 @@
 
 Zero framework dependencies - pure business logic and mathematical models over aggregated structures.
 """
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 from src.domain.model.aggregation_models import (
     AverageDiscountAggregation,
@@ -13,6 +13,7 @@ from src.domain.model.aggregation_models import (
 )
 from src.domain.model.metric_result import (
     AverageDiscountResult,
+    CatalogPriceElasticityOverview,
     PriceElasticityResult,
     RevenueDeficitResult,
     SeasonalityResult,
@@ -174,29 +175,42 @@ class AdvancedMetricsService:
             seasonality_pattern=pattern,
         )
 
-    def calculate_price_elasticity(
-        self, aggregation: Optional[PriceElasticityAggregation]
+    def _calculate_single_elasticity(
+        self,
+        aggregation: Optional[PriceElasticityAggregation],
+        product_id: Optional[str] = None,
     ) -> PriceElasticityResult:
-        """Calculates Price Elasticity of Demand comparing promotional vs baseline sales.
+        """Calculates Price Elasticity of Demand for a single product cohort."""
+        effective_pid = product_id or (aggregation.product_id if aggregation and aggregation.product_id else None)
 
-        Elasticity (PED) = (% Delta Quantity) / (% Delta Price)
-        """
         if not aggregation or aggregation.total_records == 0:
+            summary = (
+                f"Produto '{effective_pid}' não encontrado no conjunto de dados."
+                if effective_pid
+                else "Insufficient data to compute elasticity"
+            )
             return PriceElasticityResult(
                 elasticity_coefficient=0.0,
                 percentage_change_in_price=0.0,
                 percentage_change_in_quantity=0.0,
                 demand_classification="Undefined",
-                summary="Insufficient data to compute elasticity",
+                summary=summary,
+                product_id=effective_pid,
             )
 
         if aggregation.promoted_count == 0 or aggregation.non_promoted_count == 0:
+            summary = (
+                f"O produto {effective_pid} não possui histórico de promoções registrado; impossível calcular elasticidade."
+                if effective_pid
+                else "Both promotional and regular baseline records are required to calculate price elasticity."
+            )
             return PriceElasticityResult(
                 elasticity_coefficient=0.0,
                 percentage_change_in_price=0.0,
                 percentage_change_in_quantity=0.0,
                 demand_classification="Inconclusive",
-                summary="Both promotional and regular baseline records are required to calculate price elasticity.",
+                summary=summary,
+                product_id=effective_pid,
             )
 
         base_avg_price = aggregation.non_promoted_avg_price
@@ -212,6 +226,7 @@ class AdvancedMetricsService:
                 percentage_change_in_quantity=0.0,
                 demand_classification="Undefined",
                 summary="Base price or quantity is zero; cannot compute elasticity.",
+                product_id=effective_pid,
             )
 
         pct_delta_p = ((promo_avg_price - base_avg_price) / base_avg_price) * 100.0
@@ -230,8 +245,9 @@ class AdvancedMetricsService:
             else:
                 classification = "Unit Elastic"
 
+        pid_prefix = f"Produto {effective_pid} - " if effective_pid else ""
         summary = (
-            f"Price Elasticity Coefficient: {elasticity:.2f} ({classification}). "
+            f"{pid_prefix}Price Elasticity Coefficient: {elasticity:.2f} ({classification}). "
             f"A price variance of {pct_delta_p:+.1f}% resulted in a quantity variance of {pct_delta_q:+.1f}%."
         )
 
@@ -241,4 +257,90 @@ class AdvancedMetricsService:
             percentage_change_in_quantity=round(pct_delta_q, 2),
             demand_classification=classification,
             summary=summary,
+            product_id=effective_pid,
         )
+
+    def calculate_price_elasticity(
+        self,
+        aggregations: Union[List[PriceElasticityAggregation], PriceElasticityAggregation, None],
+        target_product_id: Optional[str] = None,
+    ) -> Union[PriceElasticityResult, CatalogPriceElasticityOverview]:
+        """Calculates Price Elasticity of Demand comparing promotional vs baseline sales.
+
+        Supports single product evaluation or catalog-wide overview and ranking.
+        Elasticity (PED) = (% Delta Quantity) / (% Delta Price)
+        """
+        if aggregations is None:
+            agg_list: List[PriceElasticityAggregation] = []
+        elif isinstance(aggregations, list):
+            agg_list = aggregations
+        else:
+            agg_list = [aggregations]
+
+        if target_product_id is not None and target_product_id.strip() != "":
+            clean_target = target_product_id.strip()
+            matching_agg = None
+            for agg in agg_list:
+                if agg.product_id == clean_target or (len(agg_list) == 1 and not agg.product_id):
+                    matching_agg = agg
+                    break
+
+            if matching_agg is not None:
+                return self._calculate_single_elasticity(matching_agg, product_id=clean_target)
+
+            return PriceElasticityResult(
+                elasticity_coefficient=0.0,
+                percentage_change_in_price=0.0,
+                percentage_change_in_quantity=0.0,
+                demand_classification="Undefined",
+                summary=f"Produto '{clean_target}' não encontrado no conjunto de dados.",
+                product_id=clean_target,
+            )
+
+        if not agg_list:
+            return CatalogPriceElasticityOverview(
+                total_products_evaluated=0,
+                inconclusive_products_count=0,
+                most_elastic_products=[],
+                most_inelastic_products=[],
+                summary="Nenhum produto encontrado para avaliação de elasticidade.",
+            )
+
+        if len(agg_list) == 1 and not agg_list[0].product_id:
+            return self._calculate_single_elasticity(agg_list[0])
+
+        results: List[PriceElasticityResult] = [
+            self._calculate_single_elasticity(agg) for agg in agg_list
+        ]
+        inconclusive_products = [
+            r for r in results if r.demand_classification in ("Inconclusive", "Undefined")
+        ]
+        valid_products = [
+            r for r in results if r.demand_classification not in ("Inconclusive", "Undefined")
+        ]
+
+        most_elastic = sorted(
+            valid_products,
+            key=lambda r: abs(r.elasticity_coefficient),
+            reverse=True,
+        )
+        most_inelastic = sorted(
+            valid_products,
+            key=lambda r: abs(r.elasticity_coefficient),
+        )
+
+        summary = (
+            f"Avaliação de elasticidade do catálogo: {len(results)} produtos avaliados "
+            f"({len(valid_products)} válidos, {len(inconclusive_products)} inconclusivos/indefinidos). "
+            f"Produto mais elástico: {most_elastic[0].product_id if most_elastic else 'N/A'}. "
+            f"Produto mais inelástico: {most_inelastic[0].product_id if most_inelastic else 'N/A'}."
+        )
+
+        return CatalogPriceElasticityOverview(
+            total_products_evaluated=len(results),
+            inconclusive_products_count=len(inconclusive_products),
+            most_elastic_products=most_elastic,
+            most_inelastic_products=most_inelastic,
+            summary=summary,
+        )
+

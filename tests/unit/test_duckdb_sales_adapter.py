@@ -107,8 +107,13 @@ def test_duckdb_sales_adapter_aggregations(sample_csv_path):
     assert "2023-03" in seas.monthly_volumes
 
     # 10. Price elasticity
-    elas = adapter.aggregate_price_elasticity()
-    assert elas.total_records == 3
+    elas_list = adapter.aggregate_price_elasticity()
+    assert len(elas_list) > 0
+    assert any(e.product_id == "Prod_01" for e in elas_list)
+
+    elas_prod1 = adapter.aggregate_price_elasticity(product_id="Prod_01")
+    assert len(elas_prod1) == 1
+    assert elas_prod1[0].product_id == "Prod_01"
 
 
 def test_duckdb_sales_adapter_get_sales_by_filter(sample_csv_path):

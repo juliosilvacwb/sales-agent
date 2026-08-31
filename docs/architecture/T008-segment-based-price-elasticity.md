@@ -4,6 +4,8 @@
 ## PRD Reference
 
 - **PRD:** [R008-segment-based-price-elasticity.md](../business-requirements/R008-segment-based-price-elasticity.md)
+- **Test Coverage:** [TEST008-segment-based-price-elasticity.md](../tests/TEST008-segment-based-price-elasticity.md)
+- **Security Audit:** [S008-segment-based-price-elasticity.md](../security/S008-segment-based-price-elasticity.md)
 
 ## Technical Goal
 
@@ -68,37 +70,37 @@ elasticity queries and catalog-wide elasticity rankings.
 
 #### Leaf nodes (fully parallel — no domain dependencies)
 
-- [ ] Task 001 - [Domain-Model]: Update `PriceElasticityAggregation`
+- [COMPLETED] Task 001 - [Domain-Model]: Update `PriceElasticityAggregation`
   (Depends On: —)
-- [ ] Task 002 - [Domain-Model]: Update `PriceElasticityResult` (Depends On: —)
-- [ ] Task 003 - [Domain-Model]: Create `CatalogPriceElasticityOverview`
+- [COMPLETED] Task 002 - [Domain-Model]: Update `PriceElasticityResult` (Depends On: —)
+- [COMPLETED] Task 003 - [Domain-Model]: Create `CatalogPriceElasticityOverview`
   (Depends On: Task 002)
 
 #### Domain service (depends on models above)
 
-- [ ] Task 004 - [Domain-Service]: Update `calculate_price_elasticity`
+- [COMPLETED] Task 004 - [Domain-Service]: Update `calculate_price_elasticity`
   in `AdvancedMetricsService` (Depends On: Task 001, Task 003)
 
 ### 🟡 Phase 2 — Ports and Use Cases (Depends on Phase 1)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 005 - [Port-Out]: Update `SalesDataPort` interface
+- [COMPLETED] Task 005 - [Port-Out]: Update `SalesDataPort` interface
   (Depends On: Task 001)
-- [ ] Task 006 - [Port-In]: Update `SalesAnalysisUseCase` interface
+- [COMPLETED] Task 006 - [Port-In]: Update `SalesAnalysisUseCase` interface
   (Depends On: Task 003, Task 004)
-- [ ] Task 007 - [UseCase]: Update `SalesMetricsApplicationService` implementation
+- [COMPLETED] Task 007 - [UseCase]: Update `SalesMetricsApplicationService` implementation
   (Depends On: Task 005, Task 006)
 
 ### 🟢 Phase 3 — Adapters (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 008 - [Adapter-Persistence]: Update `SalesDataDuckDbAdapter` query
+- [COMPLETED] Task 008 - [Adapter-Persistence]: Update `SalesDataDuckDbAdapter` query
   logic (Depends On: Task 005)
-- [ ] Task 009 - [Adapter-Web]: Update LLM `domain_tools.py` signature
+- [COMPLETED] Task 009 - [Adapter-Web]: Update LLM `domain_tools.py` signature
   and docstrings (Depends On: Task 006, Task 007)
-- [ ] Task 010 - [Test-Integration]: E2E test for specific product and catalog
+- [COMPLETED] Task 010 - [Test-Integration]: E2E test for specific product and catalog
   overview (Depends On: Task 008, Task 009)
 
 ## Task Detailing (Summary Tasks)

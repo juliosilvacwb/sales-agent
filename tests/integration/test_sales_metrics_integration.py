@@ -165,8 +165,16 @@ def test_integration_identify_sales_seasonality(sales_application_service):
 
 
 def test_integration_calculate_price_elasticity(sales_application_service):
-    """Verifies Price Elasticity calculation pushdown."""
-    result = sales_application_service.calculate_price_elasticity()
-    assert result.elasticity_coefficient != 0.0
-    assert result.percentage_change_in_price < 0  # Promos offered lower price on avg
-    assert result.percentage_change_in_quantity > 0  # Promo volume was higher on avg
+    """Verifies Price Elasticity calculation pushdown for catalog overview and single product."""
+    catalog_result = sales_application_service.calculate_price_elasticity()
+    assert catalog_result.total_products_evaluated == 3
+    assert catalog_result.inconclusive_products_count == 0
+    assert len(catalog_result.most_elastic_products) == 3
+
+    beta_result = sales_application_service.calculate_price_elasticity(product_id="Product_Beta")
+    assert beta_result.product_id == "Product_Beta"
+    assert beta_result.elasticity_coefficient == -6.0
+    assert beta_result.percentage_change_in_price == -20.0
+    assert beta_result.percentage_change_in_quantity == 120.0
+    assert "Elastic" in beta_result.demand_classification
+

@@ -230,5 +230,10 @@ def test_tool_identify_sales_seasonality(mock_sales_usecase):
 def test_tool_calculate_price_elasticity(mock_sales_usecase):
     tools = {t.name: t for t in create_domain_tools(mock_sales_usecase)}
     result = tools["calculate_price_elasticity"].invoke({})
-    mock_sales_usecase.calculate_price_elasticity.assert_called_once()
+    mock_sales_usecase.calculate_price_elasticity.assert_called_with(product_id=None)
     assert "-1.5" in str(result)
+
+    result_prod = tools["calculate_price_elasticity"].invoke({"product_id": "PROD_01"})
+    mock_sales_usecase.calculate_price_elasticity.assert_called_with(product_id="PROD_01")
+    assert "-1.5" in str(result_prod)
+

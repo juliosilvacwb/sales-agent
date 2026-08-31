@@ -1,16 +1,17 @@
 """Domain entities and Value Objects."""
 from src.domain.model.sale_record import SaleRecord
 from src.domain.model.metric_result import (
-    TopSellingProductResult,
-    TopLocationResult,
-    TotalSalesResult,
-    PlannedVsActualResult,
-    PromotionImpactResult,
-    ServiceLevelBottleneckResult,
-    RevenueDeficitResult,
     AverageDiscountResult,
-    SeasonalityResult,
+    CatalogPriceElasticityOverview,
+    PlannedVsActualResult,
     PriceElasticityResult,
+    PromotionImpactResult,
+    RevenueDeficitResult,
+    SeasonalityResult,
+    ServiceLevelBottleneckResult,
+    TopLocationResult,
+    TopSellingProductResult,
+    TotalSalesResult,
 )
 from src.domain.model.aggregation_models import (
     ProductAggregation,
@@ -42,6 +43,7 @@ __all__ = [
     "AverageDiscountResult",
     "SeasonalityResult",
     "PriceElasticityResult",
+    "CatalogPriceElasticityOverview",
     "ProductAggregation",
     "LocationSalesAggregation",
     "TotalSalesAggregation",

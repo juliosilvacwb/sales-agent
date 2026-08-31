@@ -74,15 +74,18 @@ def mock_sales_port():
         monthly_volumes={"2023-01": 120.0, "2023-02": 180.0},
         total_records=2,
     )
-    port.aggregate_price_elasticity.return_value = PriceElasticityAggregation(
-        promoted_avg_price=45.0,
-        non_promoted_avg_price=100.0,
-        promoted_avg_qty=120.0,
-        non_promoted_avg_qty=180.0,
-        promoted_count=1,
-        non_promoted_count=1,
-        total_records=2,
-    )
+    port.aggregate_price_elasticity.return_value = [
+        PriceElasticityAggregation(
+            promoted_avg_price=45.0,
+            non_promoted_avg_price=100.0,
+            promoted_avg_qty=120.0,
+            non_promoted_avg_qty=180.0,
+            promoted_count=1,
+            non_promoted_count=1,
+            total_records=2,
+            product_id="PROD_01",
+        )
+    ]
     port.execute_read_only_query.return_value = [{"col1": "val1", "count": 42}]
     return port
 
@@ -161,9 +164,16 @@ def test_identify_sales_seasonality(application_service, mock_sales_port):
     assert result.peak_volume == 180.0
 
 
-def test_calculate_price_elasticity(application_service, mock_sales_port):
+def test_calculate_price_elasticity_catalog(application_service, mock_sales_port):
     result = application_service.calculate_price_elasticity()
-    mock_sales_port.aggregate_price_elasticity.assert_called_once()
+    mock_sales_port.aggregate_price_elasticity.assert_called_with(product_id=None)
+    assert result.total_products_evaluated == 1
+
+
+def test_calculate_price_elasticity_single_product(application_service, mock_sales_port):
+    result = application_service.calculate_price_elasticity(product_id="PROD_01")
+    mock_sales_port.aggregate_price_elasticity.assert_called_with(product_id="PROD_01")
+    assert result.product_id == "PROD_01"
     assert result.elasticity_coefficient != 0.0
 
 

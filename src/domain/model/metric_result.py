@@ -105,3 +105,15 @@ class PriceElasticityResult:
     percentage_change_in_quantity: float
     demand_classification: str
     summary: str = ""
+    product_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CatalogPriceElasticityOverview:
+    """Result for catalog-wide price elasticity overview and rankings."""
+    total_products_evaluated: int
+    inconclusive_products_count: int
+    most_elastic_products: List[PriceElasticityResult] = field(default_factory=list)
+    most_inelastic_products: List[PriceElasticityResult] = field(default_factory=list)
+    summary: str = ""
+

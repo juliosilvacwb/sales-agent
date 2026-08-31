@@ -348,8 +348,10 @@ class DuckDbSalesAdapter(SalesDataPort):
             total_records=total_records,
         )
 
-    def aggregate_price_elasticity(self) -> PriceElasticityAggregation:
-        """Aggregates promotional and baseline prices and quantities for price elasticity."""
+    def aggregate_price_elasticity(
+        self, product_id: Optional[str] = None
+    ) -> List[PriceElasticityAggregation]:
+        """Aggregates promotional and baseline prices and quantities for price elasticity per product segment."""
         # Check if explicit promotion_type exists
         check_query = """
         SELECT
@@ -367,8 +369,15 @@ class DuckDbSalesAdapter(SalesDataPort):
             # Fallback to discount rate
             promo_cond = "planned_price > 0 AND actual_price < planned_price"
 
+        where_clause = ""
+        params: List[Any] = []
+        if product_id is not None and product_id.strip() != "":
+            where_clause = "WHERE product_id = ?"
+            params.append(product_id.strip())
+
         query = f"""
         SELECT
+            product_id,
             COALESCE(AVG(actual_price) FILTER (WHERE {promo_cond}), 0.0) AS promo_avg_p,
             COALESCE(AVG(actual_price) FILTER (WHERE NOT ({promo_cond})), 0.0) AS non_promo_avg_p,
             COALESCE(AVG(actual_quantity) FILTER (WHERE {promo_cond}), 0.0) AS promo_avg_q,
@@ -377,29 +386,29 @@ class DuckDbSalesAdapter(SalesDataPort):
             COUNT(*) FILTER (WHERE NOT ({promo_cond})) AS non_promo_count,
             COUNT(*) AS total_records
         FROM sales_data
+        {where_clause}
+        GROUP BY product_id
+        ORDER BY product_id
         """
-        cursor = self._connection.execute(query)
-        row = cursor.fetchone()
-        if not row:
-            return PriceElasticityAggregation(
-                promoted_avg_price=0.0,
-                non_promoted_avg_price=0.0,
-                promoted_avg_qty=0.0,
-                non_promoted_avg_qty=0.0,
-                promoted_count=0,
-                non_promoted_count=0,
-                total_records=0,
-            )
+        cursor = self._connection.execute(query, params)
+        rows = cursor.fetchall()
+        if not rows:
+            return []
 
-        return PriceElasticityAggregation(
-            promoted_avg_price=float(row[0]),
-            non_promoted_avg_price=float(row[1]),
-            promoted_avg_qty=float(row[2]),
-            non_promoted_avg_qty=float(row[3]),
-            promoted_count=int(row[4]),
-            non_promoted_count=int(row[5]),
-            total_records=int(row[6]),
-        )
+        return [
+            PriceElasticityAggregation(
+                product_id=str(row[0]),
+                promoted_avg_price=float(row[1]),
+                non_promoted_avg_price=float(row[2]),
+                promoted_avg_qty=float(row[3]),
+                non_promoted_avg_qty=float(row[4]),
+                promoted_count=int(row[5]),
+                non_promoted_count=int(row[6]),
+                total_records=int(row[7]),
+            )
+            for row in rows
+        ]
+
 
     def get_sales_by_filter(
         self,
