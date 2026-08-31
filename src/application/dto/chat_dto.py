@@ -11,5 +11,6 @@ class ChatRequestDTO(BaseModel):
 class ChatResponseDTO(BaseModel):
     """Data Transfer Object for chat responses."""
     response: str = Field(..., description="The agent's text response")
+    data_queried: bool = Field(default=False, description="Flag indicating whether database tools were invoked")
     status: str = Field(default="success", description="Status of the response")
 

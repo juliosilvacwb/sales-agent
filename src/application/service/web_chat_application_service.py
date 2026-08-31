@@ -29,6 +29,14 @@ class WebChatApplicationService(WebChatUseCase):
         """Sets the session store adapter."""
         self._session_store = session_store
 
+    def _extract_response_and_flag(self, result: Any) -> tuple[str, bool]:
+        """Extracts natural language response and data_queried boolean flag from agent result."""
+        if hasattr(result, "response") and hasattr(result, "data_queried"):
+            return str(result.response), bool(result.data_queried)
+        if isinstance(result, tuple) and len(result) >= 2:
+            return str(result[0]), bool(result[1])
+        return str(result), bool(getattr(result, "data_queried", False))
+
     def process_chat_message(self, request: ChatRequestDTO) -> ChatResponseDTO:
         """Processes the chat message in a completely stateless manner per compute node."""
         try:
@@ -41,21 +49,25 @@ class WebChatApplicationService(WebChatUseCase):
                 history = self._session_store.get_history(request.session_id)
                 prior_messages = list(history.messages)
                 try:
-                    answer = agent.ask(request.message, chat_history=prior_messages)
+                    result = agent.ask(request.message, chat_history=prior_messages)
                 except TypeError:
-                    answer = agent.ask(request.message)
+                    result = agent.ask(request.message)
+
+                answer, data_queried = self._extract_response_and_flag(result)
 
                 # Persist turn in external store
                 history.add_user_message(request.message)
                 history.add_ai_message(answer)
                 self._session_store.save_history(request.session_id, history)
             else:
-                answer = agent.ask(request.message)
+                result = agent.ask(request.message)
+                answer, data_queried = self._extract_response_and_flag(result)
 
-            return ChatResponseDTO(response=answer, status="success")
+            return ChatResponseDTO(response=answer, data_queried=data_queried, status="success")
         except Exception:
             logger.exception("Unexpected error processing chat message for session %s", request.session_id)
             return ChatResponseDTO(
                 response="An unexpected error occurred while processing your request. Please try again later.",
+                data_queried=False,
                 status="error"
             )

@@ -54,3 +54,39 @@ def test_frontend_app_js_logic_integrity():
     assert "AbortController" in js_content
     assert "signal" in js_content
     assert "error-banner" in js_content or "errorBanner" in js_content
+
+
+def test_frontend_verified_badge_dom_rendering_when_true():
+    """[TEST013-14] Verify app.js handles data_queried=true creating .verified-data-badge with SVG icon and text."""
+    base_dir = Path(__file__).resolve().parents[5] / "src" / "adapter" / "inbound" / "web" / "static"
+    app_js = base_dir / "app.js"
+    js_content = app_js.read_text(encoding="utf-8")
+
+    assert "verified-data-badge" in js_content
+    assert "Dados Verificados" in js_content
+    assert "verified-badge-icon" in js_content
+    assert "dataQueried" in js_content
+
+
+def test_frontend_verified_badge_omitted_when_false():
+    """[TEST013-15] Verify app.js omits verified badge when data_queried is false or on error messages."""
+    base_dir = Path(__file__).resolve().parents[5] / "src" / "adapter" / "inbound" / "web" / "static"
+    app_js = base_dir / "app.js"
+    js_content = app_js.read_text(encoding="utf-8")
+
+    assert "if (dataQueried)" in js_content or "if (data.data_queried)" in js_content
+    assert 'addMessage("Sorry, I encountered an error: " + data.response, "bot-message", false)' in js_content
+
+
+def test_frontend_verified_badge_accessibility_attributes():
+    """[TEST013-16] Verify verified badge satisfies ARIA accessibility requirements."""
+    base_dir = Path(__file__).resolve().parents[5] / "src" / "adapter" / "inbound" / "web" / "static"
+    app_js = base_dir / "app.js"
+    styles_css = base_dir / "styles.css"
+    js_content = app_js.read_text(encoding="utf-8")
+    css_content = styles_css.read_text(encoding="utf-8")
+
+    assert 'role", "status"' in js_content or ('role' in js_content and 'status' in js_content)
+    assert 'aria-label", "Dados verificados no banco de dados"' in js_content
+    assert ".verified-data-badge" in css_content
+

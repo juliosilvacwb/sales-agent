@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function addMessage(content, type) {
+    function addMessage(content, type, dataQueried = false) {
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message", type);
         
@@ -30,8 +30,28 @@ document.addEventListener("DOMContentLoaded", () => {
         if (type === "bot-message") {
             // Parse Markdown and sanitize with DOMPurify to prevent DOM-based XSS
             const rawHtml = typeof marked !== "undefined" ? marked.parse(content) : content;
-            const cleanHtml = typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(rawHtml) : rawHtml;
+            const cleanHtml = typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(rawHtml, {
+                FORBID_TAGS: ["style", "script", "iframe"],
+                FORBID_ATTR: ["style", "onerror", "onload"]
+            }) : rawHtml;
             contentDiv.innerHTML = cleanHtml;
+
+            // Strip any synthetic/forged verified badges injected in LLM markdown content
+            contentDiv.querySelectorAll(".verified-data-badge").forEach(el => el.remove());
+
+            if (dataQueried) {
+                const badge = document.createElement("div");
+                badge.className = "verified-data-badge";
+                badge.setAttribute("role", "status");
+                badge.setAttribute("aria-label", "Dados verificados no banco de dados");
+                badge.innerHTML = `
+                    <svg class="verified-badge-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Dados Verificados</span>
+                `;
+                contentDiv.appendChild(badge);
+            }
         } else {
             // Escape user input to prevent XSS
             contentDiv.textContent = content;
@@ -76,9 +96,9 @@ document.addEventListener("DOMContentLoaded", () => {
             typingIndicator.style.display = "none";
             
             if (data.status === "error") {
-                addMessage("Sorry, I encountered an error: " + data.response, "bot-message");
+                addMessage("Sorry, I encountered an error: " + data.response, "bot-message", false);
             } else {
-                addMessage(data.response, "bot-message");
+                addMessage(data.response, "bot-message", Boolean(data.data_queried));
             }
             
         } catch (error) {

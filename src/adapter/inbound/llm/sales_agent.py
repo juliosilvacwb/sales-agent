@@ -1,9 +1,10 @@
 """Sales Agent Orchestrator with System Prompt and Tool Routing."""
 import logging
 import re
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from langchain.agents import create_agent
+from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -84,6 +85,108 @@ def _handle_tool_error(error: ToolException) -> str:
     return err_msg
 
 
+DATA_QUERY_TOOLS: Set[str] = {
+    "get_top_selling_product",
+    "get_top_locations_by_volume",
+    "get_total_sales_in_period",
+    "compare_planned_vs_actual_quantity",
+    "analyze_promotion_impact",
+    "analyze_service_level_bottlenecks",
+    "calculate_revenue_deficit",
+    "calculate_average_discount",
+    "identify_sales_seasonality",
+    "calculate_price_elasticity",
+    "secured_sql_query",
+}
+
+
+class ToolTrackingCallbackHandler(BaseCallbackHandler):
+    """Callback handler that monitors LangChain tool executions to track database queries per turn."""
+
+    def __init__(self, data_tools: Optional[Sequence[str]] = None) -> None:
+        super().__init__()
+        self.data_tools: Set[str] = set(data_tools) if data_tools is not None else set(DATA_QUERY_TOOLS)
+        self.has_queried_data: bool = False
+        self._executed_tools: List[str] = []
+
+    def on_tool_start(
+        self,
+        serialized: Dict[str, Any],
+        input_str: str,
+        *,
+        run_id: Optional[Any] = None,
+        parent_run_id: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Invoked when a tool starts execution."""
+        tool_name = serialized.get("name") if isinstance(serialized, dict) else None
+        if not tool_name:
+            tool_name = kwargs.get("name")
+        if tool_name:
+            self._executed_tools.append(tool_name)
+            if self.data_tools and tool_name in self.data_tools:
+                self.has_queried_data = True
+
+    def on_tool_end(
+        self,
+        output: Any,
+        *,
+        run_id: Optional[Any] = None,
+        parent_run_id: Optional[Any] = None,
+        name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Invoked when a tool finishes execution."""
+        tool_name = name or kwargs.get("name")
+        if not tool_name and "serialized" in kwargs and isinstance(kwargs["serialized"], dict):
+            tool_name = kwargs["serialized"].get("name")
+        if tool_name:
+            self._executed_tools.append(tool_name)
+            if self.data_tools and tool_name in self.data_tools:
+                self.has_queried_data = True
+
+
+class AgentResult:
+    """Result of agent execution containing natural language response and grounding metadata."""
+
+    def __init__(self, response: str, data_queried: bool = False) -> None:
+        self.response = response
+        self.data_queried = data_queried
+
+    def __iter__(self):
+        return iter((self.response, self.data_queried))
+
+    def __getitem__(self, item: Any) -> Any:
+        return (self.response, self.data_queried)[item]
+
+    def __str__(self) -> str:
+        return self.response
+
+    def __repr__(self) -> str:
+        return f"AgentResult(response={self.response!r}, data_queried={self.data_queried!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.response == other
+        if isinstance(other, AgentResult):
+            return self.response == other.response and self.data_queried == other.data_queried
+        if isinstance(other, tuple) and len(other) == 2:
+            return (self.response, self.data_queried) == other
+        return False
+
+    def __contains__(self, item: str) -> bool:
+        return item in self.response
+
+    def lower(self) -> str:
+        return self.response.lower()
+
+    def startswith(self, prefix: str) -> bool:
+        return self.response.startswith(prefix)
+
+    def strip(self, chars: Optional[str] = None) -> str:
+        return self.response.strip(chars)
+
+
 class SalesAgent:
     """Orchestrator for the Sales Analysis conversational agent."""
 
@@ -125,29 +228,39 @@ class SalesAgent:
         self,
         question: str,
         chat_history: Optional[Sequence[BaseMessage]] = None,
-        callbacks: Optional[Sequence[Any]] = None,
-    ) -> str:
-        """Executes the agent on the given question and returns the answer.
+        callbacks: Optional[Sequence[BaseCallbackHandler]] = None,
+    ) -> AgentResult:
+        """Executes the agent on the given question and returns the answer with grounding metadata.
         
         Args:
             question: The user input query.
             chat_history: Optional external conversational history (e.g. from SessionStorePort).
             callbacks: Optional LangChain callback handlers (e.g. for deterministic evaluation interception).
+        Returns:
+            AgentResult containing the response text and the data_queried boolean flag.
         """
         logger.info("Agent received user query: '%s'", question)
         history = list(chat_history) if chat_history is not None else self._chat_history
         messages = history + [HumanMessage(content=question)]
         
-        config: RunnableConfig = {"recursion_limit": 8}
+        tracking_handler = ToolTrackingCallbackHandler()
+        turn_callbacks: List[BaseCallbackHandler] = [tracking_handler]
         if callbacks:
-            config["callbacks"] = list(callbacks)
+            turn_callbacks.extend(callbacks)
+
+        config: RunnableConfig = {
+            "recursion_limit": 8,
+            "callbacks": turn_callbacks,
+        }
 
         try:
             result = self._executor.invoke({"messages": messages}, config=config)
             output = str(result["messages"][-1].content)
+            data_queried = tracking_handler.has_queried_data
         except Exception as e:
             logger.error("Agent execution failed or retry ceiling exceeded: %s", e, exc_info=True)
             output = FALLBACK_ERROR_MESSAGE
+            data_queried = False
 
         # Update internal memory only when external history is not provided
         if chat_history is None:
@@ -156,7 +269,7 @@ class SalesAgent:
             if len(self._chat_history) > self._max_history_messages:
                 self._chat_history = self._chat_history[-self._max_history_messages:]
 
-        return output
+        return AgentResult(response=output, data_queried=data_queried)
 
     @property
     def chat_history(self) -> List[BaseMessage]:

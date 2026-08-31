@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-08-31
+
+### Added
+
+- **Rastreamento de Grounding e Flag de Consulta a Dados (T013 / R013):**
+  - Implementação de interceptação de ferramentas em tempo real para grounding factual de respostas analíticas no Sales Data Analysis Agent.
+- **Interceptador de Callbacks LangChain (`ToolTrackingCallbackHandler`):**
+  - Criação de `ToolTrackingCallbackHandler` derivado de `BaseCallbackHandler` em `src/adapter/inbound/llm/sales_agent.py`, interceptando eventos `on_tool_start` e `on_tool_end` com validação estrita fail-closed contra a whitelist `DATA_QUERY_TOOLS` e overhead sub-milissegundo (< 0.1ms).
+- **Contrato de Resultado Agêntico (`AgentResult`):**
+  - Criação da classe `AgentResult` em `src/adapter/inbound/llm/sales_agent.py`, fornecendo propriedades estruturadas `response: str` e `data_queried: bool`, desempacotamento de tupla `(response, data_queried)`, e paridade com operações de string para retrocompatibilidade total.
+- **Enriquecimento do DTO de Resposta (`ChatResponseDTO`):**
+  - Adição do atributo tipado `data_queried: bool = False` em `src/application/dto/chat_dto.py`, transportando o sinal determinístico de grounding pela fronteira da API REST (`POST /chat`).
+- **Selo Acessível no Web Chat Frontend (`src/adapter/inbound/web/static/app.js`):**
+  - Renderização dinâmica do badge `.verified-data-badge` ("Dados Verificados") com ícone SVG estático, semântica ARIA (`role="status"`, `aria-label="Dados verificados no banco de dados"`), e omissão limpa em diálogos casuais ou mensagens de erro.
+- **Suíte de Testes Automatizados de Isolamento por Turno:**
+  - Criação de `tests/integration/test_data_queried_flag.py` com 5 cenários completos validando chamadas de Domain Tools (`data_queried=True`), diálogos casuais (`data_queried=False`), isolamento estrito multi-turnos sem contaminação histórica (PRD04), contingência em falhas e teste de estresse de latência.
+- **Artefatos de Governança ADD:** Inclusão das especificações `R013-data-queried-flag.md`, `T013-data-queried-flag.md`, `TEST013-data-queried-flag.md`, `S013-data-queried-flag.md`, `Q013-data-queried-flag.md` e `PS013-data-queried-flag.md`.
+
+### Changed
+
+- **Assinatura e Orquestração de `SalesAgent.ask` (`src/adapter/inbound/llm/sales_agent.py`):**
+  - Atualizado para retornar `AgentResult` em vez de string pura, instanciando `ToolTrackingCallbackHandler` por requisição (`request-scoped`) no `RunnableConfig` para isolamento hermético entre turnos (ADR-02).
+- **Mapeamento no Serviço de Aplicação (`src/application/service/web_chat_application_service.py`):**
+  - Adicionado helper `_extract_response_and_flag` para extrair de forma resiliente a resposta e a flag `data_queried` do retorno do agente e mapeá-las para `ChatResponseDTO`.
+
+### Security & Reliability
+
+- **Mitigação de Overreliance e Alucinações (OWASP LLM09 / T013):** Desacoplamento entre a resposta textual gerada pelo LLM e o indicador estruturado de grounding emitido pelo orquestrador.
+- **Política Estritamente Fail-Closed no Callback (S013-01 / CWE-1188):** A flag `has_queried_data` só é ativada se `tool_name` for resolvido e constar expressamente no conjunto `data_tools`, mantendo-se `False` caso o nome seja nulo ou indefinido.
+- **Whitelist Não-Vazia Obrigatória (S013-02 / CWE-184):** Exigência de `self.data_tools and tool_name in self.data_tools`, impedindo que conjuntos vazios funcionem inadvertidamente como curingas (wildcards).
+- **Defesa em Profundidade contra UI Badge Spoofing (S013-03 / CWE-79 / ASVS V5):** Remoção explícita de elementos `.verified-data-badge` inseridos no Markdown gerado pelo modelo via `DOMPurify` e `querySelectorAll.remove()`, garantindo que o selo seja renderizado unicamente via controle programático JavaScript baseado no DTO verificado.
+- **Isolamento de Estado por Turno (ADR-02 / CWE-662 / PRD04):** Ciclo de vida request-scoped do handler impede vazamento de estado de consultas de banco para turnos casuais subsequentes na mesma sessão.
+
 ## [1.10.0] - 2026-08-31
 
 ### Added

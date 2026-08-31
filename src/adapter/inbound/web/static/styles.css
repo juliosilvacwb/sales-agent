@@ -183,6 +183,42 @@ body {
     text-align: left;
 }
 
+/* Verified Data Grounding Badge */
+.verified-data-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 4px 10px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 12px;
+    color: #34d399;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+    animation: fadeInBadge 0.3s ease-out forwards;
+    user-select: none;
+}
+
+.verified-badge-icon {
+    flex-shrink: 0;
+    color: #10b981;
+}
+
+@keyframes fadeInBadge {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .typing-indicator {
     display: flex;
     align-items: center;

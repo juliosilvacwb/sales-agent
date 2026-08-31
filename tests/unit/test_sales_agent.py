@@ -227,5 +227,135 @@ def test_sales_agent_initialization_with_dataset_profile():
         assert kwargs["system_prompt"] == agent.system_prompt
 
 
+def test_tool_tracking_callback_handler_initial_state():
+    """[TEST013-04] Verify newly created handler initializes with has_queried_data=False and default DATA_QUERY_TOOLS."""
+    from src.adapter.inbound.llm.sales_agent import ToolTrackingCallbackHandler, DATA_QUERY_TOOLS
+
+    handler = ToolTrackingCallbackHandler()
+    assert handler.has_queried_data is False
+    assert handler.data_tools == DATA_QUERY_TOOLS
+
+
+def test_tool_tracking_callback_handler_domain_tool_detection():
+    """[TEST013-05] Test ToolTrackingCallbackHandler detects domain tools."""
+    from src.adapter.inbound.llm.sales_agent import ToolTrackingCallbackHandler
+    from uuid import uuid4
+
+    handler = ToolTrackingCallbackHandler()
+    assert handler.has_queried_data is False
+
+    handler.on_tool_start(
+        serialized={"name": "get_top_selling_product"},
+        input_str="{}",
+        run_id=uuid4(),
+    )
+    assert handler.has_queried_data is True
+
+
+def test_tool_tracking_callback_handler_sql_query_on_tool_end():
+    """[TEST013-06] Test ToolTrackingCallbackHandler detects SQL query on tool end."""
+    from src.adapter.inbound.llm.sales_agent import ToolTrackingCallbackHandler
+    from uuid import uuid4
+
+    handler = ToolTrackingCallbackHandler()
+    handler.on_tool_end(
+        output="Result JSON",
+        name="secured_sql_query",
+        run_id=uuid4(),
+    )
+    assert handler.has_queried_data is True
+
+
+def test_tool_tracking_callback_handler_sub_millisecond_overhead():
+    """[TEST013-07] Verify in-memory callback handler execution overhead is strictly sub-millisecond (< 0.1ms)."""
+    import time
+    from src.adapter.inbound.llm.sales_agent import ToolTrackingCallbackHandler
+
+    handler = ToolTrackingCallbackHandler()
+    iterations = 1000
+    start_time = time.perf_counter()
+    for _ in range(iterations):
+        handler.on_tool_start(serialized={"name": "get_top_selling_product"}, input_str="{}")
+        handler.on_tool_end(output="{}", name="get_top_selling_product")
+    elapsed = time.perf_counter() - start_time
+    avg_ms = (elapsed / iterations) * 1000
+    assert avg_ms < 0.1, f"Average callback handler overhead exceeded 0.1ms: {avg_ms:.4f}ms"
+
+
+def test_agent_result_contracts_and_interoperability():
+    """[TEST013-08] Test AgentResult fulfills string equality, tuple unpacking, and property access."""
+    from src.adapter.inbound.llm.sales_agent import AgentResult
+
+    res = AgentResult(response="Produto A é o líder", data_queried=True)
+
+    # String behaviors
+    assert res == "Produto A é o líder"
+    assert "Produto A" in res
+    assert str(res) == "Produto A é o líder"
+    assert res.lower() == "produto a é o líder"
+    assert res.startswith("Produto")
+    assert res.strip() == "Produto A é o líder"
+    assert repr(res) == "AgentResult(response='Produto A é o líder', data_queried=True)"
+
+    # Property access
+    assert res.response == "Produto A é o líder"
+    assert res.data_queried is True
+
+    # Tuple unpacking
+    text, flagged = res
+    assert text == "Produto A é o líder"
+    assert flagged is True
+    assert res[0] == "Produto A é o líder"
+    assert res[1] is True
+
+
+def test_sales_agent_ask_intercepts_callbacks_and_returns_flag():
+    """[TEST013-09] Test SalesAgent.ask injects tracking handler into invoke config and returns flag."""
+    from src.adapter.inbound.llm.sales_agent import SalesAgent, ToolTrackingCallbackHandler
+
+    mock_llm = MagicMock()
+    mock_tools = []
+
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
+        mock_executor_instance = MagicMock()
+
+        def fake_invoke(inputs, config=None):
+            if config and "callbacks" in config:
+                for cb in config["callbacks"]:
+                    if isinstance(cb, ToolTrackingCallbackHandler):
+                        cb.on_tool_end(output="{}", name="get_top_selling_product")
+            return {"messages": [MagicMock(content="Produto mais vendido foi P1.")]}
+
+        mock_executor_instance.invoke.side_effect = fake_invoke
+        mock_create_agent.return_value = mock_executor_instance
+
+        agent = SalesAgent(llm=mock_llm, tools=mock_tools)
+        result = agent.ask("Qual o produto mais vendido?")
+
+        assert result.response == "Produto mais vendido foi P1."
+        assert result.data_queried is True
+        mock_executor_instance.invoke.assert_called_once()
+
+
+def test_sales_agent_ask_exception_fallback_returns_flag_false():
+    """[TEST013-10] Test that SalesAgent returns fallback message with data_queried=False on exception."""
+    from src.adapter.inbound.llm.sales_agent import SalesAgent, FALLBACK_ERROR_MESSAGE
+
+    mock_llm = MagicMock()
+    mock_tools = []
+
+    with patch("src.adapter.inbound.llm.sales_agent.create_agent") as mock_create_agent:
+        mock_executor_instance = MagicMock()
+        mock_executor_instance.invoke.side_effect = RuntimeError("Recursion limit exhausted")
+        mock_create_agent.return_value = mock_executor_instance
+
+        agent = SalesAgent(llm=mock_llm, tools=mock_tools)
+        result = agent.ask("Gere relatório com erro")
+
+        assert result.data_queried is False
+        assert result.response == FALLBACK_ERROR_MESSAGE
+
+
+
 
 

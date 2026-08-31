@@ -28,6 +28,7 @@ O **Sales Data Analysis Agent** é uma solução de engenharia de IA projetada p
 11. **Avaliações Determinísticas com Golden Evals (T010 / R010):** Framework automatizado de benchmarking contínuo para prevenção de alucinações matemáticas e *Prompt Drift*. Intercepta payloads JSON estruturados de ferramentas intermediárias antes da síntese em linguagem natural, aplicando asserções exatas com tolerâncias de ponto flutuante (`abs_tol=0.01`, `rel_tol=1e-3`) e integrando um Quality Gate bloqueante no pipeline de CI/CD (`.github/workflows/evals.yml`).
 12. **Perfilamento Dinâmico de Dados e Injeção de Contexto (T011 / R011 / S011):** Inspeção de metadados read-only em tempo de inicialização (startup) no DuckDB com detecção de valores sentinela literais (ex: `'None'`), colunas invariantes (`service_level`) e limites temporais/cardinalidade. Síntese do bloco `### DYNAMIC DATA INSIGHTS:` injetado no `SYSTEM_PROMPT` com sanitização contra Indirect Prompt Injection, orientando o LLM a emitir filtros de igualdade estrita (`WHERE promotion_type = 'None'`) sem mutação dos dados brutos (BR01).
 13. **Tipagem Estática Estrita & Qualidade de Código (T012 / R012 / S012 / TEST012):** Transição de tipagem dinâmica para MyPy em modo estrito (`strict = true`) em 100% da base de código (`src/`), eliminando erros de runtime (`TypeError`, `NoneType` dereferences) e impondo padronização determinística com o linter/formatador **Ruff** (sub-1s). Configuração unificada no `pyproject.toml`, segregação de dependências de desenvolvimento (`requirements-dev.txt`) para hardening de supply chain em contêineres e Quality Gate bloqueante no GitHub Actions (`.github/workflows/ci-cd.yml`) sob o princípio do menor privilégio (`permissions: contents: read`).
+14. **Rastreamento de Grounding e Selo de Dados Verificados (T013 / R013 / S013 / TEST013):** Interceptação de ferramentas em tempo real via LangChain `BaseCallbackHandler` (`ToolTrackingCallbackHandler`) com isolamento estrito por turno conversacional (`request-scoped`). Enriquecimento automático do `ChatResponseDTO` com a flag booleana `data_queried: true` quando ferramentas analíticas de domínio ou fallback SQL são executadas, e renderização dinâmica do selo de confiança acessível `✅ Dados Verificados` na interface Web Chat com defesa contra UI spoofing e sanitização DOMPurify.
 
 ---
 
@@ -282,6 +283,38 @@ sequenceDiagram
 
 ---
 
+### 🛡️ Fluxo de Rastreamento de Grounding e Selo de Dados Verificados (Turn Grounding & UI Verification)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Usuário / Web Client
+    participant Controller as ChatController (:8000)
+    participant Service as WebChatApplicationService
+    participant Agent as SalesAgent Orchestrator
+    participant Handler as ToolTrackingCallbackHandler (Request-Scoped)
+    participant Tool as Domain Tools / Fallback Tool
+    participant DuckDB as DuckDB OLAP Engine
+
+    User->>Controller: POST /chat {"message": "Qual o produto mais vendido?", "session_id": "sess-01"}
+    Controller->>Service: process_chat_message(request)
+    Service->>Agent: ask(message, history)
+    Note over Agent,Handler: Instanciação isolada por requisição (ADR-02 / PRD04)
+    Agent->>Handler: Injeta interceptor no RunnableConfig callbacks
+    Agent->>Tool: Invocação de ferramenta analítica
+    Tool->>DuckDB: Consulta vetorizada no banco de dados
+    DuckDB-->>Tool: Retorna agregações calculadas
+    Tool-->>Agent: Retorna payload estruturado em JSON
+    Agent->>Handler: on_tool_end(name="get_top_selling_product")
+    Note over Handler: Valida whitelist data_tools (S013-02) -> has_queried_data = True
+    Agent-->>Service: AgentResult(response, data_queried=True)
+    Service-->>Controller: ChatResponseDTO(response, data_queried=True, status="success")
+    Controller-->>User: HTTP 200 OK {"response": "...", "data_queried": true, "status": "success"}
+    Note over User: Web Chat insere badge acessível "✅ Dados Verificados" (app.js / role="status")
+```
+
+---
+
 ## 🛠️ Catálogo de Ferramentas de Domínio (Domain Tools)
 
 | Ferramenta | Identificador | Descrição de Negócio |
@@ -315,11 +348,11 @@ challenge_ai_engineer/
 │   └── sales.csv                  # Dataset analítico tabular
 ├── docs/
 │   ├── api/                       # Contratos de API REST (auth-service.md, web-chat.md, price-elasticity-service.md)
-│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R010)
-│   ├── architecture/              # Especificações técnicas e checklists (T001 a T010)
-│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S010)
-│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST010)
-│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q010)
+│   ├── business-requirements/     # PRDs e requisitos funcionais (R001 a R013)
+│   ├── architecture/              # Especificações técnicas e checklists (T001 a T013)
+│   ├── security/                  # Auditorias de AppSec e relatórios (S001 a S013)
+│   ├── tests/                     # Especificações de cobertura de testes (TEST001 a TEST013)
+│   └── quality/                   # Relatórios de validação de qualidade (Q001 a Q013)
 ├── k8s/                           # Manifestos declarativos Kubernetes / K3s (Zero Trust Topology)
 │   ├── app-deployment.yaml        # Multi-replica Sales Agent Deployment (2 replicas, probes, limits)
 │   ├── app-service.yaml           # ClusterIP Service para o Sales Agent (porta 8000)
@@ -541,6 +574,9 @@ mypy src/
 # Executa a suíte completa de testes unitários e de integração
 python -m pytest
 
+# Executa os testes de rastreamento de ferramentas e isolamento por turno (T013 / R013 / S013 / TEST013)
+python -m pytest tests/integration/test_data_queried_flag.py -v
+
 # Executa os testes de tipagem estrita e qualidade de código (T012 / R012 / S012 / TEST012)
 python -m pytest tests/unit/test_type_safety_and_code_quality.py -v
 
@@ -572,4 +608,5 @@ python -m pytest tests/integration/test_jwt_auth_e2e.py -v
 - **Blindagem contra Alucinação Matemática e Prompt Drift (OWASP LLM04, LLM06 / T010):** Interceptação estrita de saídas estruturadas em `tests/evals/` validando 100% de exatidão numérica contra o dataset fixo hermético `eval_dataset.csv` sobre DuckDB em memória (`:memory:`), com sanitização automática de caminhos locais (`[REDACTED_PATH]`) e retentativa exponencial contra instabilidades transitórias de API.
 - **Defesa contra Indirect Prompt Injection em Metadados Dinâmicos (OWASP LLM01 / S011 / CWE-20):** Sanitização linear rigorosa de quebras de linha (`\r`, `\n`, `\t`), neutralização de marcadores de cabeçalho Markdown (`###`) e imposição de limites de tamanho em metadados extraídos do dataset antes da interpolação no prompt do sistema agêntico.
 - **Supply Chain Security & Hardening de CI/CD (OWASP CICD-SEC-01, CICD-SEC-03, CICD-SEC-05 / S012):** Segregação rigorosa de dependências de desenvolvimento em `requirements-dev.txt`, mantendo contêineres de produção enxutos e imunes à inclusão de compiladores ou linters desnecessários; erradicação de supressões cegas de tipagem em módulos de autenticação e criptografia (`jwt.*`, `cryptography.*`); aplicação de type narrowing defensivo nas fronteiras de adaptadores externos (`sql_fallback_tool.py`, `redis_session_adapter.py`); e imposição do princípio do menor privilégio (`permissions: contents: read`) no workflow do GitHub Actions.
+- **Grounding Factual, Fail-Closed Callback e Mitigação de UI Spoofing (OWASP LLM09 / S013 / CWE-1188 / CWE-79):** Interceptação estritamente fail-closed em `ToolTrackingCallbackHandler` exigindo correspondência explícita na whitelist `data_tools`, isolamento request-scoped prevenindo vazamento de estado entre turnos conversacionais (ADR-02), e defesa contra spoofing no frontend garantindo que selos forjados em Markdown sejam purgados via `DOMPurify` e inseridos unicamente pela propriedade tipada `data_queried === true`.
 

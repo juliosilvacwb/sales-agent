@@ -11,11 +11,30 @@ def test_chat_request_dto_valid():
     assert req.session_id == "123"
 
 
-def test_chat_response_dto_valid():
-    """Verify ChatResponseDTO can be instantiated with valid data."""
-    res = ChatResponseDTO(response="Hi there")
-    assert res.response == "Hi there"
-    assert res.status == "success"
+def test_chat_response_dto_default_data_queried_false():
+    """[TEST013-01] Verify ChatResponseDTO can be instantiated with valid data and default data_queried=False."""
+    dto = ChatResponseDTO(response="Olá! Como posso ajudar?")
+    assert dto.response == "Olá! Como posso ajudar?"
+    assert dto.data_queried is False
+    assert dto.status == "success"
+
+
+def test_chat_response_dto_with_data_queried_true():
+    """[TEST013-02] Verify ChatResponseDTO correctly holds data_queried=True."""
+    dto = ChatResponseDTO(response="Produto líder: Prod_01", data_queried=True)
+    assert dto.response == "Produto líder: Prod_01"
+    assert dto.data_queried is True
+    assert dto.status == "success"
+
+
+def test_chat_response_dto_json_serialization():
+    """[TEST013-03] Verify serialization of ChatResponseDTO exports data_queried as strict boolean."""
+    dto = ChatResponseDTO(response="OK", data_queried=True)
+    data = dto.model_dump()
+    assert "data_queried" in data
+    assert isinstance(data["data_queried"], bool)
+    assert data["data_queried"] is True
+
 
 
 def test_chat_request_dto_boundary_and_pattern_validation():

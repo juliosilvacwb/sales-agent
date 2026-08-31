@@ -1,9 +1,11 @@
 <!-- markdownlint-disable MD013 -->
 # T013: Data Queried Flag and Response Grounding
 
-## PRD Reference
+## PRD & Test References
 
 - **PRD:** [R013-data-queried-flag.md](../business-requirements/R013-data-queried-flag.md)
+- **Security Audit:** [S013-data-queried-flag.md](../security/S013-data-queried-flag.md)
+- **Test Coverage:** [TEST013-data-queried-flag.md](../tests/TEST013-data-queried-flag.md)
 
 ## Technical Goal
 
@@ -42,22 +44,22 @@ Enhance executive trust in the Sales Data Analysis Agent by providing transparen
 
 #### Phase 1 tasks (all parallel-safe)
 
-- [ ] Task 001 - [Domain-Model]: Update `ChatResponseDTO` with `data_queried` (Depends On: —)
+- [COMPLETED] Task 001 - [Domain-Model]: Update `ChatResponseDTO` with `data_queried` (Depends On: —)
 
 ### 🟡 Phase 2 — Orchestration and Interception (Depends on Phase 1)
 
 #### Phase 2 tasks (all parallel-safe)
 
-- [ ] Task 002 - [UseCase]: Implement `ToolTrackingCallbackHandler` for LangChain (Depends On: Task 001)
-- [ ] Task 003 - [UseCase]: Update `SalesAgent.ask` to inject callback and return flag (Depends On: Task 002)
-- [ ] Task 004 - [UseCase]: Update `WebChatApplicationService` to map flag to DTO (Depends On: Task 003)
+- [COMPLETED] Task 002 - [UseCase]: Implement `ToolTrackingCallbackHandler` for LangChain (Depends On: Task 001)
+- [COMPLETED] Task 003 - [UseCase]: Update `SalesAgent.ask` to inject callback and return flag (Depends On: Task 002)
+- [COMPLETED] Task 004 - [UseCase]: Update `WebChatApplicationService` to map flag to DTO (Depends On: Task 003)
 
 ### 🟢 Phase 3 — Web Adapter and Validation (Depends on Phase 2)
 
 #### Phase 3 tasks (all parallel-safe)
 
-- [ ] Task 005 - [Adapter-Web]: Update Frontend UI to render Verified Badge (Depends On: Task 004)
-- [ ] Task 006 - [Test-Integration]: Implement E2E tests for turn isolation and badge logic (Depends On: Task 005)
+- [COMPLETED] Task 005 - [Adapter-Web]: Update Frontend UI to render Verified Badge (Depends On: Task 004)
+- [COMPLETED] Task 006 - [Test-Integration]: Implement E2E tests for turn isolation and badge logic (Depends On: Task 005)
 
 ## Task Detailing (Summary Tasks)
 
